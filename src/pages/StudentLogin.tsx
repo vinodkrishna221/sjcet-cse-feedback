@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ArrowLeft, GraduationCap, AlertCircle } from "lucide-react";
-import { useAuth, STUDENT_DATA } from "@/context/AuthContext";
+import { useAuth, STUDENT_DATA, STUDENT_DOB_DATA } from "@/context/AuthContext";
 import { toast } from "sonner";
 
 const StudentLogin = () => {
@@ -15,6 +15,7 @@ const StudentLogin = () => {
   const { login } = useAuth();
   const [section, setSection] = useState<'A' | 'B' | ''>('');
   const [regNumber, setRegNumber] = useState('');
+  const [dob, setDob] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
@@ -23,8 +24,8 @@ const StudentLogin = () => {
     setError('');
     setIsLoading(true);
 
-    if (!section || !regNumber) {
-      setError('Please select section and enter registration number');
+    if (!section || !regNumber || !dob) {
+      setError('Please select section, enter registration number and date of birth');
       setIsLoading(false);
       return;
     }
@@ -40,6 +41,13 @@ const StudentLogin = () => {
     // Check if registration number exists in the selected section
     if (!STUDENT_DATA[section].includes(regNumber)) {
       setError('Invalid registration number for the selected section');
+      setIsLoading(false);
+      return;
+    }
+
+    // Check if DOB matches the registration number
+    if (!STUDENT_DOB_DATA[regNumber] || STUDENT_DOB_DATA[regNumber] !== dob) {
+      setError('Invalid credentials. Please check your registration number and date of birth');
       setIsLoading(false);
       return;
     }
@@ -114,6 +122,20 @@ const StudentLogin = () => {
                 />
                 <p className="text-xs text-muted-foreground">
                   Format: 24G31A05XX (where XX is your roll number)
+                </p>
+              </div>
+
+              {/* Date of Birth */}
+              <div className="space-y-2">
+                <Label htmlFor="dob">Date of Birth</Label>
+                <Input
+                  id="dob"
+                  type="date"
+                  value={dob}
+                  onChange={(e) => setDob(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Enter your date of birth as password
                 </p>
               </div>
 
