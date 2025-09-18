@@ -4,30 +4,23 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LogOut, Eye, TrendingUp, Users, Star, BookOpen } from "lucide-react";
+import { LogOut, Eye, TrendingUp, Users, Star, BookOpen, Package } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-
-interface FeedbackData {
-  id: string;
-  subject: string;
-  faculty: string;
-  rating: number;
-  feedback: string;
-  suggestions: string;
-  submittedAt: string;
-  studentSection: string;
-}
+import { BundledFeedback, LegacyFeedbackData } from "@/types/feedback";
 
 const PrincipalDashboard = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const [feedbackData, setFeedbackData] = useState<FeedbackData[]>([]);
+  const [feedbackData, setFeedbackData] = useState<LegacyFeedbackData[]>([]);
+  const [bundledFeedback, setBundledFeedback] = useState<BundledFeedback[]>([]);
 
   useEffect(() => {
-    // Load feedback data from localStorage
-    const data = JSON.parse(localStorage.getItem('feedbackData') || '[]');
-    setFeedbackData(data);
+    // Load both legacy and bundled feedback data
+    const legacyData = JSON.parse(localStorage.getItem('feedbackData') || '[]');
+    const bundledData = JSON.parse(localStorage.getItem('bundledFeedbackData') || '[]');
+    setFeedbackData(legacyData);
+    setBundledFeedback(bundledData);
   }, []);
 
   const handleLogout = () => {
@@ -36,17 +29,34 @@ const PrincipalDashboard = () => {
     toast.info('Logged out successfully');
   };
 
-  // Calculate comprehensive statistics
-  const totalFeedback = feedbackData.length;
+  // Calculate comprehensive statistics combining both data sources
+  const allFeedbackItems = [
+    ...feedbackData,
+    ...bundledFeedback.flatMap(bundle => 
+      bundle.teacherFeedbacks.map(tf => ({
+        id: bundle.id,
+        subject: tf.subject,
+        faculty: tf.teacherName,
+        rating: tf.rating,
+        feedback: tf.feedback,
+        suggestions: tf.suggestions,
+        submittedAt: bundle.submittedAt,
+        studentSection: bundle.studentSection
+      }))
+    )
+  ];
+
+  const totalFeedback = allFeedbackItems.length;
+  const totalStudents = bundledFeedback.length + feedbackData.length; // Approximate unique students
   const averageRating = totalFeedback > 0 
-    ? (feedbackData.reduce((sum, item) => sum + item.rating, 0) / totalFeedback).toFixed(1)
+    ? (allFeedbackItems.reduce((sum, item) => sum + item.rating, 0) / totalFeedback).toFixed(1)
     : '0';
   
-  const sectionA = feedbackData.filter(item => item.studentSection === 'A').length;
-  const sectionB = feedbackData.filter(item => item.studentSection === 'B').length;
+  const sectionA = allFeedbackItems.filter(item => item.studentSection === 'A').length;
+  const sectionB = allFeedbackItems.filter(item => item.studentSection === 'B').length;
 
   // Subject performance analysis
-  const subjectPerformance = feedbackData.reduce((acc, item) => {
+  const subjectPerformance = allFeedbackItems.reduce((acc, item) => {
     if (!acc[item.subject]) {
       acc[item.subject] = { total: 0, count: 0, ratings: [] };
     }
@@ -57,7 +67,7 @@ const PrincipalDashboard = () => {
   }, {} as Record<string, { total: number; count: number; ratings: number[] }>);
 
   // Faculty performance analysis
-  const facultyPerformance = feedbackData.reduce((acc, item) => {
+  const facultyPerformance = allFeedbackItems.reduce((acc, item) => {
     if (!acc[item.faculty]) {
       acc[item.faculty] = { total: 0, count: 0, ratings: [], subjects: new Set() };
     }
@@ -69,9 +79,9 @@ const PrincipalDashboard = () => {
   }, {} as Record<string, { total: number; count: number; ratings: number[]; subjects: Set<string> }>);
 
   // Department performance metrics
-  const excellentRatings = feedbackData.filter(item => item.rating >= 8).length;
-  const averageRatings = feedbackData.filter(item => item.rating >= 6 && item.rating < 8).length;
-  const poorRatings = feedbackData.filter(item => item.rating < 6).length;
+  const excellentRatings = allFeedbackItems.filter(item => item.rating >= 8).length;
+  const averageRatings = allFeedbackItems.filter(item => item.rating >= 6 && item.rating < 8).length;
+  const poorRatings = allFeedbackItems.filter(item => item.rating < 6).length;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 to-accent/5">
@@ -98,7 +108,7 @@ const PrincipalDashboard = () => {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
         {/* Executive Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
           <Card className="card-academic">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Responses</CardTitle>
@@ -106,7 +116,18 @@ const PrincipalDashboard = () => {
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-primary">{totalFeedback}</div>
-              <p className="text-xs text-muted-foreground">Student feedback collected</p>
+              <p className="text-xs text-muted-foreground">Individual feedback items</p>
+            </CardContent>
+          </Card>
+
+          <Card className="card-academic">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Students</CardTitle>
+              <Package className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-accent">{bundledFeedback.length}</div>
+              <p className="text-xs text-muted-foreground">Completed submissions</p>
             </CardContent>
           </Card>
 
@@ -150,8 +171,9 @@ const PrincipalDashboard = () => {
 
         {/* Detailed Analytics */}
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="overview">Department Overview</TabsTrigger>
+            <TabsTrigger value="students">Student Submissions</TabsTrigger>
             <TabsTrigger value="subjects">Subject Performance</TabsTrigger>
             <TabsTrigger value="faculty">Faculty Analysis</TabsTrigger>
             <TabsTrigger value="trends">Performance Trends</TabsTrigger>
@@ -237,6 +259,57 @@ const PrincipalDashboard = () => {
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+
+          <TabsContent value="students">
+            <Card className="card-academic">
+              <CardHeader>
+                <CardTitle>Student Feedback Submissions</CardTitle>
+                <CardDescription>Complete feedback bundles from students</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {bundledFeedback.map((bundle) => (
+                    <div key={bundle.id} className="border border-border rounded-lg p-4">
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <h4 className="font-medium flex items-center space-x-2">
+                            <Package className="h-4 w-4" />
+                            <span>{bundle.studentName}</span>
+                          </h4>
+                          <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                            <span>Section {bundle.studentSection}</span>
+                            <span>•</span>
+                            <span>{bundle.teacherFeedbacks.length} teachers evaluated</span>
+                            <span>•</span>
+                            <span>{new Date(bundle.submittedAt).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                        <Badge variant="outline">
+                          Avg: {(bundle.teacherFeedbacks.reduce((sum, tf) => sum + tf.rating, 0) / bundle.teacherFeedbacks.length).toFixed(1)}/10
+                        </Badge>
+                      </div>
+                      
+                      <div className="grid gap-2">
+                        {bundle.teacherFeedbacks.map((tf, index) => (
+                          <div key={index} className="text-sm flex items-center justify-between bg-muted/20 rounded px-3 py-2">
+                            <span>{tf.teacherName} - {tf.subject}</span>
+                            <Badge variant="secondary" className="text-xs">
+                              {tf.rating}/10
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  {bundledFeedback.length === 0 && (
+                    <p className="text-muted-foreground text-center py-8">
+                      No student submissions yet
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="subjects">

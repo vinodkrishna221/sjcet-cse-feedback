@@ -4,30 +4,23 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LogOut, Download, BarChart3, Users, Star, TrendingUp } from "lucide-react";
+import { LogOut, Download, BarChart3, Users, Star, TrendingUp, Package } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-
-interface FeedbackData {
-  id: string;
-  subject: string;
-  faculty: string;
-  rating: number;
-  feedback: string;
-  suggestions: string;
-  submittedAt: string;
-  studentSection: string;
-}
+import { BundledFeedback, LegacyFeedbackData } from "@/types/feedback";
 
 const HODDashboard = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const [feedbackData, setFeedbackData] = useState<FeedbackData[]>([]);
+  const [feedbackData, setFeedbackData] = useState<LegacyFeedbackData[]>([]);
+  const [bundledFeedback, setBundledFeedback] = useState<BundledFeedback[]>([]);
 
   useEffect(() => {
-    // Load feedback data from localStorage
-    const data = JSON.parse(localStorage.getItem('feedbackData') || '[]');
-    setFeedbackData(data);
+    // Load both legacy and bundled feedback data
+    const legacyData = JSON.parse(localStorage.getItem('feedbackData') || '[]');
+    const bundledData = JSON.parse(localStorage.getItem('bundledFeedbackData') || '[]');
+    setFeedbackData(legacyData);
+    setBundledFeedback(bundledData);
   }, []);
 
   const handleLogout = () => {
@@ -37,26 +30,46 @@ const HODDashboard = () => {
   };
 
   const handleExportData = () => {
-    if (feedbackData.length === 0) {
+    if (feedbackData.length === 0 && bundledFeedback.length === 0) {
       toast.error('No feedback data to export');
       return;
     }
 
-    // Create CSV content
-    const headers = ['ID', 'Subject', 'Faculty', 'Rating', 'Feedback', 'Suggestions', 'Submitted At', 'Section'];
-    const csvContent = [
-      headers.join(','),
-      ...feedbackData.map(item => [
-        item.id,
-        `"${item.subject}"`,
+    // Create CSV content for bundled feedback
+    const headers = ['Student ID', 'Section', 'Teacher', 'Subject', 'Rating', 'Feedback', 'Suggestions', 'Submitted At'];
+    const csvRows = [];
+    
+    // Add bundled feedback data
+    bundledFeedback.forEach(bundle => {
+      bundle.teacherFeedbacks.forEach(tf => {
+        csvRows.push([
+          bundle.studentName,
+          bundle.studentSection,
+          `"${tf.teacherName}"`,
+          `"${tf.subject}"`,
+          tf.rating,
+          `"${tf.feedback.replace(/"/g, '""')}"`,
+          `"${tf.suggestions.replace(/"/g, '""')}"`,
+          bundle.submittedAt
+        ].join(','));
+      });
+    });
+
+    // Add legacy feedback data
+    feedbackData.forEach(item => {
+      csvRows.push([
+        'Legacy Student',
+        item.studentSection,
         `"${item.faculty}"`,
+        `"${item.subject}"`,
         item.rating,
         `"${item.feedback.replace(/"/g, '""')}"`,
         `"${item.suggestions.replace(/"/g, '""')}"`,
-        item.submittedAt,
-        item.studentSection
-      ].join(','))
-    ].join('\n');
+        item.submittedAt
+      ].join(','));
+    });
+
+    const csvContent = [headers.join(','), ...csvRows].join('\n');
 
     // Download CSV
     const blob = new Blob([csvContent], { type: 'text/csv' });
@@ -72,21 +85,38 @@ const HODDashboard = () => {
     toast.success('Feedback data exported successfully');
   };
 
-  // Calculate statistics
-  const totalFeedback = feedbackData.length;
+  // Calculate comprehensive statistics
+  const allFeedbackItems = [
+    ...feedbackData,
+    ...bundledFeedback.flatMap(bundle => 
+      bundle.teacherFeedbacks.map(tf => ({
+        id: bundle.id,
+        subject: tf.subject,
+        faculty: tf.teacherName,
+        rating: tf.rating,
+        feedback: tf.feedback,
+        suggestions: tf.suggestions,
+        submittedAt: bundle.submittedAt,
+        studentSection: bundle.studentSection
+      }))
+    )
+  ];
+
+  const totalFeedback = allFeedbackItems.length;
+  const totalBundles = bundledFeedback.length;
   const averageRating = totalFeedback > 0 
-    ? (feedbackData.reduce((sum, item) => sum + item.rating, 0) / totalFeedback).toFixed(1)
+    ? (allFeedbackItems.reduce((sum, item) => sum + item.rating, 0) / totalFeedback).toFixed(1)
     : '0';
   
-  const sectionA = feedbackData.filter(item => item.studentSection === 'A').length;
-  const sectionB = feedbackData.filter(item => item.studentSection === 'B').length;
+  const sectionA = allFeedbackItems.filter(item => item.studentSection === 'A').length;
+  const sectionB = allFeedbackItems.filter(item => item.studentSection === 'B').length;
 
-  const subjectStats = feedbackData.reduce((acc, item) => {
+  const subjectStats = allFeedbackItems.reduce((acc, item) => {
     acc[item.subject] = (acc[item.subject] || 0) + 1;
     return acc;
   }, {} as Record<string, number>);
 
-  const facultyRatings = feedbackData.reduce((acc, item) => {
+  const facultyRatings = allFeedbackItems.reduce((acc, item) => {
     if (!acc[item.faculty]) {
       acc[item.faculty] = { total: 0, count: 0 };
     }
@@ -130,14 +160,26 @@ const HODDashboard = () => {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
         {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
           <Card className="card-academic">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Feedback</CardTitle>
+              <CardTitle className="text-sm font-medium">Total Responses</CardTitle>
               <BarChart3 className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-primary">{totalFeedback}</div>
+              <p className="text-xs text-muted-foreground">Individual feedback items</p>
+            </CardContent>
+          </Card>
+
+          <Card className="card-academic">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Student Bundles</CardTitle>
+              <Package className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-accent">{totalBundles}</div>
+              <p className="text-xs text-muted-foreground">Completed submissions</p>
             </CardContent>
           </Card>
 
@@ -174,11 +216,12 @@ const HODDashboard = () => {
 
         {/* Detailed Reports */}
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="bundles">Student Bundles</TabsTrigger>
             <TabsTrigger value="subjects">Subjects</TabsTrigger>
             <TabsTrigger value="faculty">Faculty</TabsTrigger>
-            <TabsTrigger value="feedback">Recent Feedback</TabsTrigger>
+            <TabsTrigger value="feedback">All Feedback</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview">
@@ -302,16 +345,67 @@ const HODDashboard = () => {
             </Card>
           </TabsContent>
 
+          <TabsContent value="bundles">
+            <Card className="card-academic">
+              <CardHeader>
+                <CardTitle>Student Feedback Bundles</CardTitle>
+                <CardDescription>Complete feedback submissions from students</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-6">
+                  {bundledFeedback.map((bundle) => (
+                    <div key={bundle.id} className="border border-border rounded-lg p-4">
+                      <div className="flex items-start justify-between mb-4">
+                        <div>
+                          <h4 className="font-medium flex items-center space-x-2">
+                            <Package className="h-4 w-4" />
+                            <span>{bundle.studentName}</span>
+                          </h4>
+                          <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                            <span>Section {bundle.studentSection}</span>
+                            <span>•</span>
+                            <span>{bundle.teacherFeedbacks.length} teachers</span>
+                            <span>•</span>
+                            <span>{new Date(bundle.submittedAt).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      <div className="grid gap-3">
+                        {bundle.teacherFeedbacks.map((tf, index) => (
+                          <div key={index} className="bg-muted/30 rounded p-3">
+                            <div className="flex items-center justify-between mb-2">
+                              <h5 className="font-medium text-sm">{tf.teacherName} - {tf.subject}</h5>
+                              <Badge variant="outline">Rating: {tf.rating}/10</Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground">
+                              {tf.feedback.length > 100 ? `${tf.feedback.substring(0, 100)}...` : tf.feedback}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  {bundledFeedback.length === 0 && (
+                    <p className="text-muted-foreground text-center py-8">
+                      No bundled feedback submissions yet
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
           <TabsContent value="feedback">
             <Card className="card-academic">
               <CardHeader>
-                <CardTitle>Recent Feedback</CardTitle>
-                <CardDescription>Latest student feedback submissions</CardDescription>
+                <CardTitle>All Feedback Items</CardTitle>
+                <CardDescription>Individual feedback responses from all submissions</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {feedbackData.slice(0, 10).map((item, index) => (
-                    <div key={item.id} className="border-b border-border pb-4 last:border-0">
+                  {allFeedbackItems.slice(0, 15).map((item, index) => (
+                    <div key={`${item.id}-${index}`} className="border-b border-border pb-4 last:border-0">
                       <div className="flex items-start justify-between mb-2">
                         <div>
                           <h4 className="font-medium">{item.subject} - {item.faculty}</h4>
@@ -329,7 +423,7 @@ const HODDashboard = () => {
                       </p>
                     </div>
                   ))}
-                  {feedbackData.length === 0 && (
+                  {allFeedbackItems.length === 0 && (
                     <p className="text-muted-foreground text-center py-8">
                       No feedback submissions yet
                     </p>

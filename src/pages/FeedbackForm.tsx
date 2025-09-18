@@ -2,49 +2,36 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Slider } from "@/components/ui/slider";
-import { LogOut, Send, Star } from "lucide-react";
-import { useAuth } from "@/context/AuthContext";
+import { Badge } from "@/components/ui/badge";
+import { LogOut, Send, Star, CheckCircle2, User } from "lucide-react";
+import { useAuth, TEACHERS_DATA } from "@/context/AuthContext";
 import { toast } from "sonner";
+import TeacherFeedbackModal from "@/components/TeacherFeedbackModal";
+import { Teacher, IndividualFeedback, BundledFeedback } from "@/types/feedback";
 
 const FeedbackForm = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
-  // Form state
-  const [subject, setSubject] = useState('');
-  const [faculty, setFaculty] = useState('');
-  const [rating, setRating] = useState([7]);
-  const [feedback, setFeedback] = useState('');
-  const [suggestions, setSuggestions] = useState('');
+  const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
+  const [teacherFeedbacks, setTeacherFeedbacks] = useState<Record<string, IndividualFeedback>>({});
 
-  const subjects = [
-    'Data Structures',
-    'Computer Networks',
-    'Operating Systems',
-    'Database Management Systems',
-    'Software Engineering',
-    'Web Technologies'
-  ];
+  // Get teachers for the current student's section
+  const sectionTeachers = user?.section ? TEACHERS_DATA[user.section] : [];
 
-  const faculties = [
-    'Dr. A. Kumar',
-    'Prof. B. Sharma',
-    'Dr. C. Patel',
-    'Prof. D. Singh',
-    'Dr. E. Reddy',
-    'Prof. F. Gupta'
-  ];
+  const handleTeacherFeedbackSave = (feedback: IndividualFeedback) => {
+    setTeacherFeedbacks(prev => ({
+      ...prev,
+      [feedback.teacherId]: feedback
+    }));
+    toast.success(`Feedback saved for ${feedback.teacherName}`);
+  };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmitAllFeedback = async () => {
+    const feedbackCount = Object.keys(teacherFeedbacks).length;
     
-    if (!subject || !faculty || !feedback.trim()) {
-      toast.error('Please fill in all required fields');
+    if (feedbackCount === 0) {
+      toast.error('Please provide feedback for at least one teacher');
       return;
     }
 
@@ -52,30 +39,39 @@ const FeedbackForm = () => {
 
     // Simulate submission
     setTimeout(() => {
-      const feedbackData = {
+      // Generate anonymous student name
+      const existingBundles = JSON.parse(localStorage.getItem('bundledFeedbackData') || '[]');
+      const studentNumber = existingBundles.length + 1;
+      
+      const bundledFeedback: BundledFeedback = {
         id: Math.random().toString(36).substr(2, 9),
-        subject,
-        faculty,
-        rating: rating[0],
-        feedback: feedback.trim(),
-        suggestions: suggestions.trim(),
-        submittedAt: new Date().toISOString(),
-        studentSection: user?.section
+        studentName: `Anonymous Student ${studentNumber}`,
+        studentSection: user?.section!,
+        teacherFeedbacks: Object.values(teacherFeedbacks),
+        submittedAt: new Date().toISOString()
       };
 
-      // Store in localStorage for demo (in real app, would send to Supabase)
-      const existingFeedback = JSON.parse(localStorage.getItem('feedbackData') || '[]');
-      existingFeedback.push(feedbackData);
-      localStorage.setItem('feedbackData', JSON.stringify(existingFeedback));
+      // Store bundled feedback
+      existingBundles.push(bundledFeedback);
+      localStorage.setItem('bundledFeedbackData', JSON.stringify(existingBundles));
 
-      toast.success('Feedback submitted successfully!');
-      
-      // Reset form
-      setSubject('');
-      setFaculty('');
-      setRating([7]);
-      setFeedback('');
-      setSuggestions('');
+      // Also store in legacy format for backward compatibility
+      const legacyFeedback = Object.values(teacherFeedbacks).map(tf => ({
+        id: Math.random().toString(36).substr(2, 9),
+        subject: tf.subject,
+        faculty: tf.teacherName,
+        rating: tf.rating,
+        feedback: tf.feedback,
+        suggestions: tf.suggestions,
+        submittedAt: bundledFeedback.submittedAt,
+        studentSection: user?.section!
+      }));
+
+      const existingLegacyFeedback = JSON.parse(localStorage.getItem('feedbackData') || '[]');
+      existingLegacyFeedback.push(...legacyFeedback);
+      localStorage.setItem('feedbackData', JSON.stringify(existingLegacyFeedback));
+
+      toast.success(`Feedback submitted successfully for ${feedbackCount} teachers!`);
       setIsSubmitting(false);
 
       // Navigate to success page or logout
@@ -115,129 +111,105 @@ const FeedbackForm = () => {
       </header>
 
       {/* Main Content */}
-      <main className="container mx-auto px-4 py-8 max-w-3xl">
+      <main className="container mx-auto px-4 py-8 max-w-4xl">
         <Card className="card-academic">
           <CardHeader>
-            <CardTitle className="text-2xl text-center">Subject Feedback</CardTitle>
+            <CardTitle className="text-2xl text-center">Teacher Feedback</CardTitle>
             <p className="text-muted-foreground text-center">
-              Your feedback helps us improve the quality of education. All responses are anonymous.
+              Provide feedback for all your teachers. Your responses help improve teaching quality and remain anonymous.
             </p>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Subject Selection */}
-              <div className="space-y-2">
-                <Label htmlFor="subject" className="text-base font-medium">
-                  Subject <span className="text-destructive">*</span>
-                </Label>
-                <Select value={subject} onValueChange={setSubject}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select subject for feedback" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {subjects.map((subj) => (
-                      <SelectItem key={subj} value={subj}>
-                        {subj}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Faculty Selection */}
-              <div className="space-y-2">
-                <Label htmlFor="faculty" className="text-base font-medium">
-                  Faculty <span className="text-destructive">*</span>
-                </Label>
-                <Select value={faculty} onValueChange={setFaculty}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select faculty member" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {faculties.map((fac) => (
-                      <SelectItem key={fac} value={fac}>
-                        {fac}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Rating */}
-              <div className="space-y-3">
-                <Label className="text-base font-medium">
-                  Overall Rating: {rating[0]}/10
-                </Label>
-                <div className="px-3">
-                  <Slider
-                    value={rating}
-                    onValueChange={setRating}
-                    max={10}
-                    min={1}
-                    step={1}
-                    className="w-full"
-                  />
+            {/* Progress Summary */}
+            <div className="mb-6 p-4 bg-primary/5 rounded-lg border border-primary/20">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <User className="h-5 w-5 text-primary" />
+                  <span className="font-medium">Feedback Progress</span>
                 </div>
-                <div className="flex justify-between text-sm text-muted-foreground">
-                  <span>1 - Poor</span>
-                  <span>5 - Average</span>
-                  <span>10 - Excellent</span>
-                </div>
+                <Badge variant="secondary">
+                  {Object.keys(teacherFeedbacks).length} of {sectionTeachers.length} completed
+                </Badge>
               </div>
+            </div>
 
-              {/* Feedback */}
-              <div className="space-y-2">
-                <Label htmlFor="feedback" className="text-base font-medium">
-                  Detailed Feedback <span className="text-destructive">*</span>
-                </Label>
-                <Textarea
-                  id="feedback"
-                  placeholder="Share your experience with the subject, teaching methodology, course content, etc."
-                  value={feedback}
-                  onChange={(e) => setFeedback(e.target.value)}
-                  rows={5}
-                  className="resize-none"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Minimum 20 characters required
-                </p>
+            {/* Teachers List */}
+            <div className="space-y-4 mb-8">
+              <h3 className="text-lg font-semibold">Your Teachers - Section {user?.section}</h3>
+              <div className="grid gap-4">
+                {sectionTeachers.map((teacher) => {
+                  const hasFeedback = !!teacherFeedbacks[teacher.id];
+                  
+                  return (
+                    <div 
+                      key={teacher.id} 
+                      className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-accent/5 transition-colors"
+                    >
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3">
+                          <div>
+                            <h4 className="font-medium">{teacher.name}</h4>
+                            <p className="text-sm text-muted-foreground">{teacher.subject}</p>
+                          </div>
+                          {hasFeedback && (
+                            <CheckCircle2 className="h-5 w-5 text-success" />
+                          )}
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center space-x-3">
+                        {hasFeedback && (
+                          <Badge variant="outline" className="text-success border-success">
+                            Rating: {teacherFeedbacks[teacher.id].rating}/10
+                          </Badge>
+                        )}
+                        <Button
+                          variant={hasFeedback ? "outline" : "default"}
+                          onClick={() => setSelectedTeacher(teacher)}
+                          className={hasFeedback ? "border-success text-success hover:bg-success/10" : "btn-academic"}
+                        >
+                          {hasFeedback ? 'Edit Feedback' : 'Give Feedback'}
+                        </Button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
+            </div>
 
-              {/* Suggestions */}
-              <div className="space-y-2">
-                <Label htmlFor="suggestions" className="text-base font-medium">
-                  Suggestions for Improvement
-                </Label>
-                <Textarea
-                  id="suggestions"
-                  placeholder="Any suggestions to improve the course or teaching methods?"
-                  value={suggestions}
-                  onChange={(e) => setSuggestions(e.target.value)}
-                  rows={3}
-                  className="resize-none"
-                />
-              </div>
-
-              {/* Submit Button */}
-              <div className="pt-4">
-                <Button
-                  type="submit"
-                  disabled={isSubmitting || !subject || !faculty || feedback.length < 20}
-                  className="w-full btn-hero text-lg py-6"
-                >
-                  {isSubmitting ? (
-                    'Submitting Feedback...'
-                  ) : (
-                    <>
-                      <Send className="h-5 w-5 mr-2" />
-                      Submit Feedback
-                    </>
-                  )}
-                </Button>
-              </div>
-            </form>
+            {/* Submit All Button */}
+            <div className="pt-4 border-t border-border">
+              <Button
+                onClick={handleSubmitAllFeedback}
+                disabled={isSubmitting || Object.keys(teacherFeedbacks).length === 0}
+                className="w-full btn-hero text-lg py-6"
+              >
+                {isSubmitting ? (
+                  'Submitting All Feedback...'
+                ) : (
+                  <>
+                    <Send className="h-5 w-5 mr-2" />
+                    Submit All Feedback
+                  </>
+                )}
+              </Button>
+              <p className="text-xs text-muted-foreground text-center mt-2">
+                You can submit feedback for individual teachers and submit all at once
+              </p>
+            </div>
           </CardContent>
         </Card>
+
+        {/* Teacher Feedback Modal */}
+        {selectedTeacher && (
+          <TeacherFeedbackModal
+            teacher={selectedTeacher}
+            isOpen={!!selectedTeacher}
+            onClose={() => setSelectedTeacher(null)}
+            onSave={handleTeacherFeedbackSave}
+            existingFeedback={teacherFeedbacks[selectedTeacher.id]}
+          />
+        )}
 
         {/* Privacy Note */}
         <div className="mt-6 p-4 bg-success/10 rounded-lg border border-success/20">
