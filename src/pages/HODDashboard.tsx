@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LogOut, Download, BarChart3, Users, Star, TrendingUp, Package } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { LogOut, Download, BarChart3, Users, Star, TrendingUp, Package, ChevronDown, ChevronRight } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { BundledFeedback, LegacyFeedbackData } from "@/types/feedback";
@@ -352,39 +353,48 @@ const HODDashboard = () => {
                 <CardDescription>Complete feedback submissions from students</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-6">
+                <div className="space-y-4">
                   {bundledFeedback.map((bundle) => (
-                    <div key={bundle.id} className="border border-border rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-4">
-                        <div>
-                          <h4 className="font-medium flex items-center space-x-2">
-                            <Package className="h-4 w-4" />
-                            <span>{bundle.studentName}</span>
-                          </h4>
-                          <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                            <span>Section {bundle.studentSection}</span>
-                            <span>•</span>
-                            <span>{bundle.teacherFeedbacks.length} teachers</span>
-                            <span>•</span>
-                            <span>{new Date(bundle.submittedAt).toLocaleDateString()}</span>
-                          </div>
-                        </div>
-                      </div>
-                      
-                      <div className="grid gap-3">
-                        {bundle.teacherFeedbacks.map((tf, index) => (
-                          <div key={index} className="bg-muted/30 rounded p-3">
-                            <div className="flex items-center justify-between mb-2">
-                              <h5 className="font-medium text-sm">{tf.teacherName} - {tf.subject}</h5>
-                              <Badge variant="outline">Rating: {tf.rating}/10</Badge>
+                    <Collapsible key={bundle.id}>
+                      <CollapsibleTrigger className="flex items-center justify-between w-full p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors">
+                        <div className="flex items-start justify-between w-full">
+                          <div className="flex items-center space-x-3">
+                            <Package className="h-4 w-4 text-muted-foreground" />
+                            <div>
+                              <h4 className="font-medium text-left">{bundle.studentName}</h4>
+                              <div className="flex items-center space-x-2 text-sm text-muted-foreground">
+                                <span>Section {bundle.studentSection}</span>
+                                <span>•</span>
+                                <span>{bundle.teacherFeedbacks.length} teachers</span>
+                                <span>•</span>
+                                <span>{new Date(bundle.submittedAt).toLocaleDateString()}</span>
+                              </div>
                             </div>
-                            <p className="text-sm text-muted-foreground">
-                              {tf.feedback.length > 100 ? `${tf.feedback.substring(0, 100)}...` : tf.feedback}
-                            </p>
                           </div>
-                        ))}
-                      </div>
-                    </div>
+                          <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                        </div>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="mt-2">
+                        <div className="grid gap-3 px-4 pb-4">
+                          {bundle.teacherFeedbacks.map((tf, index) => (
+                            <div key={index} className="bg-muted/30 rounded p-3">
+                              <div className="flex items-center justify-between mb-2">
+                                <h5 className="font-medium text-sm">{tf.teacherName} - {tf.subject}</h5>
+                                <Badge variant="outline">Rating: {tf.rating}/10</Badge>
+                              </div>
+                              <p className="text-sm text-muted-foreground mb-2">
+                                <strong>Feedback:</strong> {tf.feedback}
+                              </p>
+                              {tf.suggestions && (
+                                <p className="text-sm text-muted-foreground">
+                                  <strong>Suggestions:</strong> {tf.suggestions}
+                                </p>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
                   ))}
                   {bundledFeedback.length === 0 && (
                     <p className="text-muted-foreground text-center py-8">
