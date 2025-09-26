@@ -24,7 +24,7 @@ const FeedbackForm = () => {
       ...prev,
       [feedback.teacherId]: feedback
     }));
-    toast.success(`Feedback saved for ${feedback.teacherName}`);
+    toast.success(`Comprehensive feedback saved for ${feedback.teacherName} (${feedback.overallRating}/10)`);
   };
 
   const handleSubmitAllFeedback = async () => {
@@ -150,6 +150,11 @@ const FeedbackForm = () => {
                           <div>
                             <h4 className="font-medium">{teacher.name}</h4>
                             <p className="text-sm text-muted-foreground">{teacher.subject}</p>
+                            {hasFeedback && (
+                              <p className="text-xs text-primary">
+                                {teacherFeedbacks[teacher.id].questionRatings.length} questions rated
+                              </p>
+                            )}
                           </div>
                           {hasFeedback && (
                             <CheckCircle2 className="h-5 w-5 text-success" />
@@ -160,7 +165,7 @@ const FeedbackForm = () => {
                       <div className="flex items-center space-x-3">
                         {hasFeedback && (
                           <Badge variant="outline" className="text-success border-success">
-                            Rating: {teacherFeedbacks[teacher.id].rating}/10
+                            Overall: {teacherFeedbacks[teacher.id].overallRating}/10
                           </Badge>
                         )}
                         <Button

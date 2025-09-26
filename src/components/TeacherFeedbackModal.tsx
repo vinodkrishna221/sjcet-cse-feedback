@@ -4,8 +4,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
-import { Teacher, IndividualFeedback } from "@/types/feedback";
-import { Star } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Teacher, IndividualFeedback, FEEDBACK_QUESTIONS, QuestionRating } from "@/types/feedback";
+import { Star, MessageSquare, Lightbulb } from "lucide-react";
 
 interface TeacherFeedbackModalProps {
   teacher: Teacher;
@@ -22,12 +24,30 @@ const TeacherFeedbackModal = ({
   onSave, 
   existingFeedback 
 }: TeacherFeedbackModalProps) => {
-  const [rating, setRating] = useState([existingFeedback?.rating || 7]);
-  const [feedback, setFeedback] = useState(existingFeedback?.feedback || '');
+  const [questionRatings, setQuestionRatings] = useState<QuestionRating[]>(
+    existingFeedback?.questionRatings || 
+    FEEDBACK_QUESTIONS.map(q => ({ questionId: q.id, question: q.question, rating: 7 }))
+  );
+  const [detailedFeedback, setDetailedFeedback] = useState(existingFeedback?.detailedFeedback || '');
   const [suggestions, setSuggestions] = useState(existingFeedback?.suggestions || '');
 
+  const handleQuestionRatingChange = (questionId: string, rating: number[]) => {
+    setQuestionRatings(prev => 
+      prev.map(qr => 
+        qr.questionId === questionId 
+          ? { ...qr, rating: rating[0] }
+          : qr
+      )
+    );
+  };
+
+  const calculateOverallRating = () => {
+    const total = questionRatings.reduce((sum, qr) => sum + qr.rating, 0);
+    return Math.round(total / questionRatings.length * 10) / 10;
+  };
+
   const handleSave = () => {
-    if (!feedback.trim() || feedback.length < 20) {
+    if (!suggestions.trim() || suggestions.length < 10) {
       return; // Validation handled by disabled state
     }
 
@@ -35,8 +55,9 @@ const TeacherFeedbackModal = ({
       teacherId: teacher.id,
       teacherName: teacher.name,
       subject: teacher.subject,
-      rating: rating[0],
-      feedback: feedback.trim(),
+      questionRatings,
+      overallRating: calculateOverallRating(),
+      detailedFeedback: detailedFeedback.trim() || undefined,
       suggestions: suggestions.trim()
     };
 
@@ -46,82 +67,146 @@ const TeacherFeedbackModal = ({
 
   const handleClose = () => {
     // Reset form when closing without saving
-    setRating([existingFeedback?.rating || 7]);
-    setFeedback(existingFeedback?.feedback || '');
+    setQuestionRatings(
+      existingFeedback?.questionRatings || 
+      FEEDBACK_QUESTIONS.map(q => ({ questionId: q.id, question: q.question, rating: 7 }))
+    );
+    setDetailedFeedback(existingFeedback?.detailedFeedback || '');
     setSuggestions(existingFeedback?.suggestions || '');
     onClose();
   };
 
+  const overallRating = calculateOverallRating();
+
   return (
     <Dialog open={isOpen} onOpenChange={handleClose}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-xl">
-            Feedback for {teacher.name}
+          <DialogTitle className="text-xl flex items-center space-x-2">
+            <Star className="h-5 w-5 text-primary" />
+            <span>Feedback for {teacher.name}</span>
           </DialogTitle>
-          <p className="text-muted-foreground">
-            Subject: {teacher.subject}
-          </p>
+          <div className="flex items-center space-x-4 text-sm text-muted-foreground">
+            <span>Subject: {teacher.subject}</span>
+            <Badge variant="outline">Overall: {overallRating}/10</Badge>
+          </div>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
-          {/* Rating */}
-          <div className="space-y-3">
-            <Label className="text-base font-medium">
-              Overall Rating: {rating[0]}/10
-            </Label>
-            <div className="px-3">
-              <Slider
-                value={rating}
-                onValueChange={setRating}
-                max={10}
-                min={1}
-                step={1}
-                className="w-full"
+          {/* Question Ratings */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center space-x-2">
+                <Star className="h-5 w-5" />
+                <span>Rate Each Aspect (1-10)</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {FEEDBACK_QUESTIONS.map((question, index) => {
+                const currentRating = questionRatings.find(qr => qr.questionId === question.id)?.rating || 7;
+                
+                return (
+                  <div key={question.id} className="space-y-3">
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1">
+                        <Label className="text-sm font-medium">
+                          {index + 1}. {question.question}
+                        </Label>
+                        <Badge variant="secondary" className="ml-2 text-xs">
+                          {question.category}
+                        </Badge>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-lg font-semibold text-primary">
+                          {currentRating}/10
+                        </span>
+                      </div>
+                    </div>
+                    
+                    <div className="px-3">
+                      <Slider
+                        value={[currentRating]}
+                        onValueChange={(value) => handleQuestionRatingChange(question.id, value)}
+                        max={10}
+                        min={1}
+                        step={1}
+                        className="w-full"
+                      />
+                    </div>
+                    
+                    <div className="flex justify-between text-xs text-muted-foreground">
+                      <span>1 - Poor</span>
+                      <span>5 - Average</span>
+                      <span>10 - Excellent</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </CardContent>
+          </Card>
+
+          {/* Overall Rating Display */}
+          <Card className="bg-primary/5 border-primary/20">
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <div className="text-3xl font-bold text-primary mb-2">
+                  {overallRating}/10
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Overall Rating (Average of all questions)
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Detailed Feedback (Optional) */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center space-x-2">
+                <MessageSquare className="h-5 w-5" />
+                <span>Detailed Feedback</span>
+                <Badge variant="outline" className="text-xs">Optional</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Textarea
+                placeholder={`Share your detailed experience with ${teacher.name}'s teaching methods, course delivery, classroom interaction, etc. This is optional but helps provide more context.`}
+                value={detailedFeedback}
+                onChange={(e) => setDetailedFeedback(e.target.value)}
+                rows={4}
+                className="resize-none"
               />
-            </div>
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <span>1 - Poor</span>
-              <span>5 - Average</span>
-              <span>10 - Excellent</span>
-            </div>
-          </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Optional: Provide additional context about your learning experience
+              </p>
+            </CardContent>
+          </Card>
 
-          {/* Feedback */}
-          <div className="space-y-2">
-            <Label htmlFor="feedback" className="text-base font-medium">
-              Detailed Feedback <span className="text-destructive">*</span>
-            </Label>
-            <Textarea
-              id="feedback"
-              placeholder={`Share your experience with ${teacher.name}'s teaching methodology, course content, classroom management, etc.`}
-              value={feedback}
-              onChange={(e) => setFeedback(e.target.value)}
-              rows={5}
-              className="resize-none"
-            />
-            <p className="text-xs text-muted-foreground">
-              Minimum 20 characters required ({feedback.length}/20)
-            </p>
-          </div>
-
-          {/* Suggestions */}
-          <div className="space-y-2">
-            <Label htmlFor="suggestions" className="text-base font-medium">
-              Suggestions for Improvement
-            </Label>
-            <Textarea
-              id="suggestions"
-              placeholder="Any suggestions to improve the teaching methods or course delivery?"
-              value={suggestions}
-              onChange={(e) => setSuggestions(e.target.value)}
-              rows={3}
-              className="resize-none"
-            />
-          </div>
+          {/* Suggestions for Improvement */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center space-x-2">
+                <Lightbulb className="h-5 w-5" />
+                <span>Suggestions for Improvement</span>
+                <Badge variant="destructive" className="text-xs">Required</Badge>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <Textarea
+                placeholder="What specific suggestions do you have to help improve the teaching methods, course delivery, or overall learning experience?"
+                value={suggestions}
+                onChange={(e) => setSuggestions(e.target.value)}
+                rows={3}
+                className="resize-none"
+              />
+              <p className="text-xs text-muted-foreground mt-2">
+                Required: Minimum 10 characters ({suggestions.length}/10)
+              </p>
+            </CardContent>
+          </Card>
 
           {/* Action Buttons */}
-          <div className="flex justify-end space-x-3 pt-4">
+          <div className="flex justify-end space-x-3 pt-4 border-t">
             <Button
               variant="outline"
               onClick={handleClose}
@@ -130,7 +215,7 @@ const TeacherFeedbackModal = ({
             </Button>
             <Button
               onClick={handleSave}
-              disabled={!feedback.trim() || feedback.length < 20}
+              disabled={!suggestions.trim() || suggestions.length < 10}
               className="btn-hero"
             >
               <Star className="h-4 w-4 mr-2" />
