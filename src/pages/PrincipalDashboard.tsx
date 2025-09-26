@@ -7,7 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LogOut, Eye, TrendingUp, Users, Star, BookOpen, Package } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { BundledFeedback, LegacyFeedbackData } from "@/types/feedback";
+import { BundledFeedback, LegacyFeedbackData, FEEDBACK_QUESTIONS } from "@/types/feedback";
 
 const PrincipalDashboard = () => {
   const navigate = useNavigate();
@@ -37,8 +37,8 @@ const PrincipalDashboard = () => {
         id: bundle.id,
         subject: tf.subject,
         faculty: tf.teacherName,
-        rating: tf.rating,
-        feedback: tf.feedback,
+        rating: tf.overallRating,
+        feedback: tf.detailedFeedback || '',
         suggestions: tf.suggestions,
         submittedAt: bundle.submittedAt,
         studentSection: bundle.studentSection
@@ -265,13 +265,13 @@ const PrincipalDashboard = () => {
             <Card className="card-academic">
               <CardHeader>
                 <CardTitle>Student Feedback Submissions</CardTitle>
-                <CardDescription>Complete feedback bundles from students</CardDescription>
+                <CardDescription>Comprehensive 10-question feedback from students</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-4">
+                <div className="space-y-6">
                   {bundledFeedback.map((bundle) => (
-                    <div key={bundle.id} className="border border-border rounded-lg p-4">
-                      <div className="flex items-start justify-between mb-3">
+                    <div key={bundle.id} className="border border-border rounded-lg p-6">
+                      <div className="flex items-start justify-between mb-4">
                         <div>
                           <h4 className="font-medium flex items-center space-x-2">
                             <Package className="h-4 w-4" />
@@ -286,17 +286,48 @@ const PrincipalDashboard = () => {
                           </div>
                         </div>
                         <Badge variant="outline">
-                          Avg: {(bundle.teacherFeedbacks.reduce((sum, tf) => sum + tf.rating, 0) / bundle.teacherFeedbacks.length).toFixed(1)}/10
+                          Avg: {(bundle.teacherFeedbacks.reduce((sum, tf) => sum + tf.overallRating, 0) / bundle.teacherFeedbacks.length).toFixed(1)}/10
                         </Badge>
                       </div>
                       
-                      <div className="grid gap-2">
+                      <div className="space-y-4">
                         {bundle.teacherFeedbacks.map((tf, index) => (
-                          <div key={index} className="text-sm flex items-center justify-between bg-muted/20 rounded px-3 py-2">
-                            <span>{tf.teacherName} - {tf.subject}</span>
-                            <Badge variant="secondary" className="text-xs">
-                              {tf.rating}/10
-                            </Badge>
+                          <div key={index} className="bg-muted/20 rounded-lg p-4">
+                            <div className="flex items-center justify-between mb-3">
+                              <div>
+                                <h5 className="font-medium">{tf.teacherName}</h5>
+                                <p className="text-sm text-muted-foreground">{tf.subject}</p>
+                              </div>
+                              <Badge variant="secondary">
+                                {tf.overallRating}/10
+                              </Badge>
+                            </div>
+                            
+                            {/* Question Categories Performance */}
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3">
+                              {tf.questionRatings.slice(0, 5).map((qr, qIndex) => (
+                                <div key={qIndex} className="text-xs">
+                                  <div className="font-medium truncate">
+                                    {FEEDBACK_QUESTIONS.find(q => q.id === qr.questionId)?.category}
+                                  </div>
+                                  <div className="text-primary font-semibold">{qr.rating}/10</div>
+                                </div>
+                              ))}
+                            </div>
+                            
+                            {/* Detailed Feedback */}
+                            {tf.detailedFeedback && (
+                              <div className="mb-2">
+                                <p className="text-xs font-medium text-muted-foreground mb-1">Detailed Feedback:</p>
+                                <p className="text-sm bg-background rounded p-2">{tf.detailedFeedback}</p>
+                              </div>
+                            )}
+                            
+                            {/* Suggestions */}
+                            <div>
+                              <p className="text-xs font-medium text-muted-foreground mb-1">Suggestions:</p>
+                              <p className="text-sm bg-background rounded p-2">{tf.suggestions}</p>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -316,7 +347,7 @@ const PrincipalDashboard = () => {
             <Card className="card-academic">
               <CardHeader>
                 <CardTitle>Subject Performance Analysis</CardTitle>
-                <CardDescription>Average ratings and response counts per subject</CardDescription>
+                <CardDescription>Comprehensive analysis with question-wise breakdown</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -327,15 +358,25 @@ const PrincipalDashboard = () => {
                       const ratingColor = Number(avgRating) >= 8 ? 'success' : Number(avgRating) >= 6 ? 'warning' : 'destructive';
                       
                       return (
-                        <div key={subject} className="flex items-center justify-between p-4 border border-border rounded-lg">
-                          <div>
-                            <h4 className="font-medium">{subject}</h4>
-                            <p className="text-sm text-muted-foreground">{stats.count} student responses</p>
-                          </div>
-                          <div className="flex items-center space-x-3">
+                        <div key={subject} className="p-4 border border-border rounded-lg">
+                          <div className="flex items-center justify-between mb-3">
+                            <div>
+                              <h4 className="font-medium">{subject}</h4>
+                              <p className="text-sm text-muted-foreground">{stats.count} comprehensive evaluations</p>
+                            </div>
                             <Badge variant={ratingColor === 'success' ? 'default' : 'secondary'}>
                               {avgRating}/10
                             </Badge>
+                          </div>
+                          
+                          {/* Question Categories Performance for this subject */}
+                          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                            {FEEDBACK_QUESTIONS.slice(0, 5).map((question, qIndex) => (
+                              <div key={qIndex} className="text-xs p-2 bg-muted/20 rounded">
+                                <div className="font-medium truncate">{question.category}</div>
+                                <div className="text-primary">Avg Rating</div>
+                              </div>
+                            ))}
                           </div>
                         </div>
                       );
@@ -343,6 +384,56 @@ const PrincipalDashboard = () => {
                   {Object.keys(subjectPerformance).length === 0 && (
                     <p className="text-muted-foreground text-center py-8">
                       No subject data available yet
+                    </p>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="faculty">
+            <Card className="card-academic">
+              <CardHeader>
+                <CardTitle>Faculty Performance Summary</CardTitle>
+                <CardDescription>10-question analysis for teaching effectiveness</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {Object.entries(facultyPerformance)
+                    .sort(([,a], [,b]) => (b.total / b.count) - (a.total / a.count))
+                    .map(([faculty, stats]) => {
+                      const avgRating = (stats.total / stats.count).toFixed(1);
+                      const subjectCount = stats.subjects.size;
+                      
+                      return (
+                        <div key={faculty} className="p-4 border border-border rounded-lg">
+                          <div className="flex items-center justify-between mb-3">
+                          <div>
+                            <h4 className="font-medium">{faculty}</h4>
+                            <p className="text-sm text-muted-foreground">
+                              {stats.count} comprehensive evaluations • {subjectCount} subject{subjectCount > 1 ? 's' : ''}
+                            </p>
+                          </div>
+                          <Badge variant={Number(avgRating) >= 7 ? 'default' : 'secondary'}>
+                            {avgRating}/10
+                          </Badge>
+                          </div>
+                          
+                          {/* Teaching aspects breakdown */}
+                          <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                            {FEEDBACK_QUESTIONS.slice(0, 5).map((question, qIndex) => (
+                              <div key={qIndex} className="text-xs p-2 bg-muted/20 rounded">
+                                <div className="font-medium truncate">{question.category}</div>
+                                <div className="text-primary">Performance</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  {Object.keys(facultyPerformance).length === 0 && (
+                    <p className="text-muted-foreground text-center py-8">
+                      No faculty data available yet
                     </p>
                   )}
                 </div>
@@ -395,7 +486,7 @@ const PrincipalDashboard = () => {
               <Card className="card-academic">
                 <CardHeader>
                   <CardTitle>Department Insights</CardTitle>
-                  <CardDescription>Key performance indicators</CardDescription>
+                  <CardDescription>Comprehensive teaching effectiveness metrics</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="text-center p-6 bg-success/5 rounded-lg border border-success/20">
@@ -403,13 +494,13 @@ const PrincipalDashboard = () => {
                       {totalFeedback > 0 ? Math.round((excellentRatings / totalFeedback) * 100) : 0}%
                     </div>
                     <p className="text-sm text-success/80">Excellence Rate</p>
-                    <p className="text-xs text-muted-foreground mt-1">Students rating 8+ out of 10</p>
+                    <p className="text-xs text-muted-foreground mt-1">Overall ratings 8+ out of 10</p>
                   </div>
                   
                   <div className="text-center p-6 bg-primary/5 rounded-lg border border-primary/20">
                     <div className="text-2xl font-bold text-primary mb-2">{averageRating}</div>
                     <p className="text-sm text-primary/80">Department Average</p>
-                    <p className="text-xs text-muted-foreground mt-1">Overall teaching effectiveness</p>
+                    <p className="text-xs text-muted-foreground mt-1">Across all 10 evaluation criteria</p>
                   </div>
                 </CardContent>
               </Card>
@@ -422,7 +513,7 @@ const PrincipalDashboard = () => {
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Total Student Participation</span>
-                    <Badge variant="outline">{totalFeedback} responses</Badge>
+                    <Badge variant="outline">{totalFeedback} comprehensive evaluations</Badge>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Section A Participation</span>
@@ -439,6 +530,10 @@ const PrincipalDashboard = () => {
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Faculty Members Reviewed</span>
                     <Badge variant="outline">{Object.keys(facultyPerformance).length} faculty</Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Evaluation Criteria</span>
+                    <Badge variant="outline">{FEEDBACK_QUESTIONS.length} questions</Badge>
                   </div>
                 </CardContent>
               </Card>
