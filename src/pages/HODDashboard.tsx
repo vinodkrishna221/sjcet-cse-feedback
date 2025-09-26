@@ -8,12 +8,24 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { LogOut, Eye, TrendingUp, Users, Star, BookOpen, Package, Upload, Download, AlertCircle } from "lucide-react";
+import { LogOut, Eye, TrendingUp, Users, Star, BookOpen, Package, Upload, Download, CircleAlert as AlertCircle } from "lucide-react";
 import { FiUserPlus } from "react-icons/fi";
 import { useAuth, STUDENT_DETAILS, StudentDetails, TEACHER_DETAILS, TeacherDetails } from "@/context/AuthContext";
-import { BundledFeedback as BundledFeedbackType, FEEDBACK_QUESTIONS } from "@/types/feedback";
 import { toast } from "sonner";
 import Papa from 'papaparse';
+
+interface BundledFeedback {
+  studentId: string;
+  section: string;
+  timestamp: string;
+  feedbacks: {
+    teacherId: string;
+    teacherName: string;
+    subject: string;
+    rating: number;
+    comments: string;
+  }[];
+}
 
 interface LegacyFeedbackData {
   id: number;
@@ -29,7 +41,7 @@ export default function HODDashboard() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState("overview");
-  const [feedbackData, setFeedbackData] = useState<BundledFeedbackType[]>([]);
+  const [feedbackData, setFeedbackData] = useState<BundledFeedback[]>([]);
   const [legacyData, setLegacyData] = useState<LegacyFeedbackData[]>([]);
   
   // Student management state
@@ -68,38 +80,23 @@ export default function HODDashboard() {
     }
 
     // Simulated data fetch
-    const mockFeedbackData: BundledFeedbackType[] = [
+    const mockFeedbackData: BundledFeedback[] = [
       {
-        id: "fb1",
-        studentName: "Anonymous Student 1",
-        studentSection: "A",
-        submittedAt: new Date().toISOString(),
-        teacherFeedbacks: [
-          { 
-            teacherId: "T001", 
-            teacherName: "Dr. Rajesh Kumar", 
-            subject: "Data Structures", 
-            questionRatings: FEEDBACK_QUESTIONS.map(q => ({ questionId: q.id, question: q.question, rating: Math.floor(Math.random() * 4) + 7 })),
-            overallRating: 8.2,
-            detailedFeedback: "Good teaching methods with clear explanations",
-            suggestions: "Could include more practical examples"
-          }
+        studentId: "24G31A0501",
+        section: "A",
+        timestamp: new Date().toISOString(),
+        feedbacks: [
+          { teacherId: "T001", teacherName: "Dr. Rajesh Kumar", subject: "Data Structures", rating: 4, comments: "Good teaching methods" },
+          { teacherId: "T002", teacherName: "Dr. Priya Sharma", subject: "Database Systems", rating: 5, comments: "Excellent explanations" }
         ]
       },
       {
-        id: "fb2",
-        studentName: "Anonymous Student 2",
-        studentSection: "A",
-        submittedAt: new Date().toISOString(),
-        teacherFeedbacks: [
-          { 
-            teacherId: "T001", 
-            teacherName: "Dr. Rajesh Kumar", 
-            subject: "Data Structures", 
-            questionRatings: FEEDBACK_QUESTIONS.map(q => ({ questionId: q.id, question: q.question, rating: Math.floor(Math.random() * 3) + 6 })),
-            overallRating: 7.1,
-            suggestions: "More interactive sessions would be helpful"
-          }
+        studentId: "24G31A0502",
+        section: "A",
+        timestamp: new Date().toISOString(),
+        feedbacks: [
+          { teacherId: "T001", teacherName: "Dr. Rajesh Kumar", subject: "Data Structures", rating: 3, comments: "Could improve practical examples" },
+          { teacherId: "T002", teacherName: "Dr. Priya Sharma", subject: "Database Systems", rating: 4, comments: "Good teaching" }
         ]
       }
     ];
@@ -321,11 +318,11 @@ export default function HODDashboard() {
 
   // Calculate statistics
   const totalResponses = feedbackData.length;
-  const sectionACount = feedbackData.filter(fb => fb.studentSection === "A").length;
-  const sectionBCount = feedbackData.filter(fb => fb.studentSection === "B").length;
+  const sectionACount = feedbackData.filter(fb => fb.section === "A").length;
+  const sectionBCount = feedbackData.filter(fb => fb.section === "B").length;
   const averageRating = feedbackData.length > 0 
-    ? (feedbackData.flatMap(fb => fb.teacherFeedbacks).reduce((sum, tf) => sum + tf.overallRating, 0) / 
-       feedbackData.flatMap(fb => fb.teacherFeedbacks).length).toFixed(1)
+    ? (feedbackData.flatMap(fb => fb.feedbacks).reduce((sum, fb) => sum + fb.rating, 0) / 
+       feedbackData.flatMap(fb => fb.feedbacks).length).toFixed(1)
     : "0";
 
   return (
@@ -469,162 +466,6 @@ export default function HODDashboard() {
               </CardContent>
             </Card>
           </div>
-        </TabsContent>
-
-        <TabsContent value="student-bundles">
-          <Card className="card-academic">
-            <CardHeader>
-              <CardTitle>Student Feedback Submissions</CardTitle>
-              <CardDescription>Detailed feedback with 10-question ratings</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                {feedbackData.map((bundle) => (
-                  <div key={bundle.id} className="border border-border rounded-lg p-6">
-                    <div className="flex items-start justify-between mb-4">
-                      <div>
-                        <h4 className="font-medium flex items-center space-x-2">
-                          <Package className="h-4 w-4" />
-                          <span>{bundle.studentName}</span>
-                        </h4>
-                        <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                          <span>Section {bundle.studentSection}</span>
-                          <span>•</span>
-                          <span>{bundle.teacherFeedbacks.length} teachers evaluated</span>
-                          <span>•</span>
-                          <span>{new Date(bundle.submittedAt).toLocaleDateString()}</span>
-                        </div>
-                      </div>
-                      <Badge variant="outline">
-                        Avg: {(bundle.teacherFeedbacks.reduce((sum, tf) => sum + tf.overallRating, 0) / bundle.teacherFeedbacks.length).toFixed(1)}/10
-                      </Badge>
-                    </div>
-                    
-                    <div className="space-y-4">
-                      {bundle.teacherFeedbacks.map((tf, index) => (
-                        <div key={index} className="bg-muted/20 rounded-lg p-4">
-                          <div className="flex items-center justify-between mb-3">
-                            <div>
-                              <h5 className="font-medium">{tf.teacherName}</h5>
-                              <p className="text-sm text-muted-foreground">{tf.subject}</p>
-                            </div>
-                            <Badge variant="secondary">
-                              {tf.overallRating}/10
-                            </Badge>
-                          </div>
-                          
-                          {/* Question Ratings Summary */}
-                          <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3">
-                            {tf.questionRatings.slice(0, 5).map((qr, qIndex) => (
-                              <div key={qIndex} className="text-xs">
-                                <div className="font-medium truncate">{FEEDBACK_QUESTIONS.find(q => q.id === qr.questionId)?.category}</div>
-                                <div className="text-primary">{qr.rating}/10</div>
-                              </div>
-                            ))}
-                          </div>
-                          
-                          {tf.detailedFeedback && (
-                            <div className="mb-2">
-                              <p className="text-xs font-medium text-muted-foreground mb-1">Detailed Feedback:</p>
-                              <p className="text-sm bg-background rounded p-2">{tf.detailedFeedback}</p>
-                            </div>
-                          )}
-                          
-                          <div>
-                            <p className="text-xs font-medium text-muted-foreground mb-1">Suggestions:</p>
-                            <p className="text-sm bg-background rounded p-2">{tf.suggestions}</p>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-                {feedbackData.length === 0 && (
-                  <p className="text-muted-foreground text-center py-8">
-                    No student submissions yet
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="subjects">
-          <Card className="card-academic">
-            <CardHeader>
-              <CardTitle>Subject Performance Analysis</CardTitle>
-              <CardDescription>Detailed breakdown by question categories</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                {/* Subject performance would be calculated from the new feedback structure */}
-                <p className="text-muted-foreground text-center py-8">
-                  Subject analysis will be populated as feedback is submitted
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="faculty">
-          <Card className="card-academic">
-            <CardHeader>
-              <CardTitle>Faculty Performance Analysis</CardTitle>
-              <CardDescription>10-question breakdown for each faculty member</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                {/* Faculty performance would be calculated from the new feedback structure */}
-                <p className="text-muted-foreground text-center py-8">
-                  Faculty analysis will be populated as feedback is submitted
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="all-feedback">
-          <Card className="card-academic">
-            <CardHeader>
-              <CardTitle>All Feedback Overview</CardTitle>
-              <CardDescription>Complete feedback data with question-wise analysis</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {feedbackData.flatMap(bundle => 
-                  bundle.teacherFeedbacks.map((tf, index) => (
-                    <div key={`${bundle.id}-${index}`} className="border border-border rounded-lg p-4">
-                      <div className="flex items-center justify-between mb-3">
-                        <div>
-                          <h4 className="font-medium">{tf.teacherName} - {tf.subject}</h4>
-                          <p className="text-sm text-muted-foreground">
-                            {bundle.studentName} • Section {bundle.studentSection}
-                          </p>
-                        </div>
-                        <Badge variant="outline">{tf.overallRating}/10</Badge>
-                      </div>
-                      
-                      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                        {tf.questionRatings.map((qr, qIndex) => (
-                          <div key={qIndex} className="text-xs p-2 bg-muted/20 rounded">
-                            <div className="font-medium truncate">
-                              {FEEDBACK_QUESTIONS.find(q => q.id === qr.questionId)?.category}
-                            </div>
-                            <div className="text-primary font-semibold">{qr.rating}/10</div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ))
-                )}
-                {feedbackData.length === 0 && (
-                  <p className="text-muted-foreground text-center py-8">
-                    No feedback data available yet
-                  </p>
-                )}
-              </div>
-            </CardContent>
-          </Card>
         </TabsContent>
 
         <TabsContent value="students">

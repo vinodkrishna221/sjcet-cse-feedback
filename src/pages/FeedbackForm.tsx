@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { LogOut, Send, Star, CheckCircle2, User } from "lucide-react";
+import { LogOut, Send, Star, CircleCheck as CheckCircle2, User } from "lucide-react";
 import { useAuth, TEACHERS_DATA } from "@/context/AuthContext";
 import { toast } from "sonner";
 import TeacherFeedbackModal from "@/components/TeacherFeedbackModal";
