@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { apiService } from '@/services/api';
+import { toast } from 'sonner';
 
 export type UserRole = 'student' | 'hod' | 'principal';
 
@@ -18,6 +20,8 @@ interface AuthContextType {
   login: (user: User) => void;
   logout: () => void;
   isAuthenticated: boolean;
+  loginStudent: (regNumber: string, dob: string) => Promise<void>;
+  loginAdmin: (username: string, password: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -178,15 +182,77 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem('feedbackPortalUser', JSON.stringify(userData));
   };
 
+  const loginStudent = async (regNumber: string, dob: string) => {
+    try {
+      const response = await apiService.loginStudent(regNumber, dob);
+      
+      if (response.success && response.data) {
+        const userData: User = {
+          id: response.data.id || regNumber,
+          role: 'student',
+          name: response.data.name || `Student ${regNumber}`,
+          section: response.data.section as 'A' | 'B',
+          regNumber: regNumber,
+          email: response.data.email,
+          phone: response.data.phone
+        };
+        
+        login(userData);
+        toast.success('Login successful!');
+      } else {
+        throw new Error(response.message || 'Login failed');
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Login failed';
+      toast.error(errorMessage);
+      throw error;
+    }
+  };
+
+  const loginAdmin = async (username: string, password: string) => {
+    try {
+      const response = await apiService.loginAdmin(username, password);
+      
+      if (response.success && response.data) {
+        const role: UserRole = username === 'principal' ? 'principal' : 'hod';
+        
+        const userData: User = {
+          id: response.data.id || username,
+          role: role,
+          name: response.data.name || (role === 'principal' ? 'Dr. Principal' : 'Dr. CSE HOD'),
+          email: response.data.email,
+          phone: response.data.phone
+        };
+        
+        login(userData);
+        toast.success('Admin login successful!');
+      } else {
+        throw new Error(response.message || 'Admin login failed');
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Admin login failed';
+      toast.error(errorMessage);
+      throw error;
+    }
+  };
+
   const logout = () => {
     setUser(null);
     localStorage.removeItem('feedbackPortalUser');
+    apiService.logout();
   };
 
   const isAuthenticated = !!user;
 
   return (
-    <AuthContext.Provider value={{ user, login, logout, isAuthenticated }}>
+    <AuthContext.Provider value={{ 
+      user, 
+      login, 
+      logout, 
+      isAuthenticated, 
+      loginStudent, 
+      loginAdmin 
+    }}>
       {children}
     </AuthContext.Provider>
   );
