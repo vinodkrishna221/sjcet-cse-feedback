@@ -1,0 +1,154 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* College Feedback Portal Design System - Academic Theme */
+
+@layer base {
+  :root {
+    /* Academic Color Palette */
+    --background: 0 0% 100%;
+    --foreground: 215 28% 17%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 215 28% 17%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 215 28% 17%;
+
+    /* Academic Blue Primary */
+    --primary: 214 84% 56%;
+    --primary-foreground: 0 0% 98%;
+    --primary-light: 214 84% 66%;
+    --primary-dark: 214 84% 46%;
+
+    /* Academic Grays */
+    --secondary: 214 20% 96%;
+    --secondary-foreground: 215 28% 17%;
+
+    --muted: 214 20% 96%;
+    --muted-foreground: 215 16% 47%;
+
+    /* Teal Accent */
+    --accent: 174 72% 56%;
+    --accent-foreground: 0 0% 98%;
+    --accent-light: 174 72% 66%;
+    --accent-dark: 174 72% 46%;
+
+    /* Status Colors */
+    --success: 142 76% 36%;
+    --success-foreground: 0 0% 98%;
+    
+    --warning: 38 92% 50%;
+    --warning-foreground: 215 28% 17%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    /* UI Elements */
+    --border: 214 20% 89%;
+    --input: 214 20% 89%;
+    --ring: 214 84% 56%;
+
+    /* Layout */
+    --radius: 0.75rem;
+
+    /* Academic Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(214 84% 56%), hsl(214 84% 46%));
+    --gradient-accent: linear-gradient(135deg, hsl(174 72% 56%), hsl(174 72% 46%));
+    --gradient-hero: linear-gradient(135deg, hsl(214 84% 56%) 0%, hsl(174 72% 56%) 100%);
+    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%) 0%, hsl(214 20% 98%) 100%);
+
+    /* Shadows */
+    --shadow-elegant: 0 10px 30px -10px hsl(214 84% 56% / 0.2);
+    --shadow-card: 0 4px 20px -4px hsl(214 84% 56% / 0.1);
+
+    /* Academic sidebar colors */
+    --sidebar-background: 214 20% 98%;
+    --sidebar-foreground: 215 28% 17%;
+    --sidebar-primary: 214 84% 56%;
+    --sidebar-primary-foreground: 0 0% 98%;
+    --sidebar-accent: 214 20% 96%;
+    --sidebar-accent-foreground: 215 28% 17%;
+    --sidebar-border: 214 20% 89%;
+    --sidebar-ring: 214 84% 56%;
+  }
+
+  .dark {
+    --background: 215 28% 9%;
+    --foreground: 0 0% 98%;
+
+    --card: 215 28% 12%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 215 28% 12%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 214 84% 66%;
+    --primary-foreground: 215 28% 9%;
+
+    --secondary: 215 28% 15%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 215 28% 15%;
+    --muted-foreground: 215 16% 65%;
+
+    --accent: 174 72% 66%;
+    --accent-foreground: 215 28% 9%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 215 28% 18%;
+    --input: 215 28% 18%;
+    --ring: 214 84% 66%;
+
+    --sidebar-background: 215 28% 12%;
+    --sidebar-foreground: 0 0% 98%;
+    --sidebar-primary: 214 84% 66%;
+    --sidebar-primary-foreground: 215 28% 9%;
+    --sidebar-accent: 215 28% 15%;
+    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-border: 215 28% 18%;
+    --sidebar-ring: 214 84% 66%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans;
+  }
+
+  /* Academic typography */
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold tracking-tight;
+  }
+}
+
+@layer components {
+  /* Academic button variants */
+  .btn-hero {
+    @apply bg-gradient-to-r from-primary to-accent text-primary-foreground px-8 py-4 rounded-lg 
+           shadow-lg hover:shadow-xl transition-all duration-300 font-semibold tracking-wide;
+  }
+
+  .btn-academic {
+    @apply bg-primary text-primary-foreground hover:bg-primary/90 
+           transition-colors duration-200 shadow-md;
+  }
+
+  /* Card variants */
+  .card-academic {
+    @apply bg-card border border-border rounded-xl shadow-sm hover:shadow-md 
+           transition-shadow duration-200;
+  }
+
+  .card-gradient {
+    @apply bg-gradient-to-br from-card to-secondary/50 border border-border 
+           rounded-xl shadow-sm;
+  }
+}
