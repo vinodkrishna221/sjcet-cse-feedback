@@ -6,12 +6,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ArrowLeft, Shield, AlertCircle, Eye, EyeOff } from "lucide-react";
-import { useAuth, ADMIN_CREDENTIALS } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 
 const AdminLogin = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { loginAdmin } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -29,41 +29,20 @@ const AdminLogin = () => {
       return;
     }
 
-    // Check credentials
-    let userRole: 'hod' | 'principal' | null = null;
-    let userName = '';
-
-    if (username === ADMIN_CREDENTIALS.hod.username && password === ADMIN_CREDENTIALS.hod.password) {
-      userRole = 'hod';
-      userName = ADMIN_CREDENTIALS.hod.name;
-    } else if (username === ADMIN_CREDENTIALS.principal.username && password === ADMIN_CREDENTIALS.principal.password) {
-      userRole = 'principal';
-      userName = ADMIN_CREDENTIALS.principal.name;
-    }
-
-    // Simulate loading
-    setTimeout(() => {
-      if (userRole) {
-        const user = {
-          id: username,
-          role: userRole,
-          name: userName
-        };
-
-        login(user);
-        toast.success(`Welcome, ${userName}!`);
-        
-        // Redirect based on role
-        if (userRole === 'hod') {
-          navigate('/hod-dashboard');
-        } else {
-          navigate('/principal-dashboard');
-        }
+    try {
+      await loginAdmin(username, password);
+      
+      // Redirect based on role
+      if (username === 'principal') {
+        navigate('/principal-dashboard');
       } else {
-        setError('Invalid username or password');
+        navigate('/hod-dashboard');
       }
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Login failed. Please check your credentials.');
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (

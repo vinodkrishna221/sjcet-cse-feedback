@@ -4,10 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { LogOut, Send, Star, CircleCheck as CheckCircle2, User } from "lucide-react";
-import { useAuth, TEACHERS_DATA } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import TeacherFeedbackModal from "@/components/TeacherFeedbackModal";
 import { Teacher, IndividualFeedback, BundledFeedback } from "@/types/feedback";
+import { useTeachers } from "@/hooks/useTeachers";
+import { apiService } from "@/services/api";
 
 const FeedbackForm = () => {
   const navigate = useNavigate();
@@ -15,9 +17,9 @@ const FeedbackForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
   const [teacherFeedbacks, setTeacherFeedbacks] = useState<Record<string, IndividualFeedback>>({});
-
-  // Get teachers for the current student's section
-  const sectionTeachers = user?.section ? TEACHERS_DATA[user.section] : [];
+  
+  // Use the custom hook to fetch teachers from the backend
+  const { teachers: sectionTeachers, loading: teachersLoading, error: teachersError } = useTeachers(user?.section);
 
   const handleTeacherFeedbackSave = (feedback: IndividualFeedback) => {
     setTeacherFeedbacks(prev => ({
@@ -37,49 +39,41 @@ const FeedbackForm = () => {
 
     setIsSubmitting(true);
 
-    // Simulate submission
-    setTimeout(() => {
-      // Generate anonymous student name
-      const existingBundles = JSON.parse(localStorage.getItem('bundledFeedbackData') || '[]');
-      const studentNumber = existingBundles.length + 1;
-      
-      const bundledFeedback: BundledFeedback = {
-        id: Math.random().toString(36).substr(2, 9),
-        studentName: `Anonymous Student ${studentNumber}`,
-        studentSection: user?.section!,
-        teacherFeedbacks: Object.values(teacherFeedbacks),
-        submittedAt: new Date().toISOString()
+    try {
+      // Prepare feedback data for backend
+      const feedbackData = {
+        student_section: user?.section,
+        teacher_feedbacks: Object.values(teacherFeedbacks).map(tf => ({
+          teacher_id: tf.teacherId,
+          teacher_name: tf.teacherName,
+          subject: tf.subject,
+          rating: tf.rating,
+          question_ratings: tf.questionRatings,
+          feedback: tf.feedback || '',
+          suggestions: tf.suggestions || '',
+          overall_rating: tf.overallRating
+        }))
       };
 
-      // Store bundled feedback
-      existingBundles.push(bundledFeedback);
-      localStorage.setItem('bundledFeedbackData', JSON.stringify(existingBundles));
-
-      // Also store in legacy format for backward compatibility
-      const legacyFeedback = Object.values(teacherFeedbacks).map(tf => ({
-        id: Math.random().toString(36).substr(2, 9),
-        subject: tf.subject,
-        faculty: tf.teacherName,
-        rating: tf.rating,
-        feedback: tf.feedback,
-        suggestions: tf.suggestions,
-        submittedAt: bundledFeedback.submittedAt,
-        studentSection: user?.section!
-      }));
-
-      const existingLegacyFeedback = JSON.parse(localStorage.getItem('feedbackData') || '[]');
-      existingLegacyFeedback.push(...legacyFeedback);
-      localStorage.setItem('feedbackData', JSON.stringify(existingLegacyFeedback));
-
-      toast.success(`Feedback submitted successfully for ${feedbackCount} teachers!`);
+      const response = await apiService.submitFeedback(feedbackData);
+      
+      if (response.success) {
+        toast.success(`Feedback submitted successfully for ${feedbackCount} teachers!`);
+        
+        // Navigate to success page or logout after a delay
+        setTimeout(() => {
+          logout();
+          navigate('/');
+        }, 2000);
+      } else {
+        throw new Error(response.message || 'Failed to submit feedback');
+      }
+    } catch (error) {
+      console.error('Failed to submit feedback:', error);
+      toast.error(error instanceof Error ? error.message : 'Failed to submit feedback. Please try again.');
+    } finally {
       setIsSubmitting(false);
-
-      // Navigate to success page or logout
-      setTimeout(() => {
-        logout();
-        navigate('/');
-      }, 2000);
-    }, 1500);
+    }
   };
 
   const handleLogout = () => {
@@ -131,55 +125,71 @@ const FeedbackForm = () => {
                   {Object.keys(teacherFeedbacks).length} of {sectionTeachers.length} completed
                 </Badge>
               </div>
+              {teachersLoading && (
+                <p className="text-sm text-muted-foreground mt-2">Loading teachers...</p>
+              )}
+              {teachersError && (
+                <p className="text-sm text-destructive mt-2">Error loading teachers: {teachersError}</p>
+              )}
             </div>
 
             {/* Teachers List */}
             <div className="space-y-4 mb-8">
               <h3 className="text-lg font-semibold">Your Teachers - Section {user?.section}</h3>
-              <div className="grid gap-4">
-                {sectionTeachers.map((teacher) => {
-                  const hasFeedback = !!teacherFeedbacks[teacher.id];
-                  
-                  return (
-                    <div 
-                      key={teacher.id} 
-                      className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-accent/5 transition-colors"
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center space-x-3">
-                          <div>
-                            <h4 className="font-medium">{teacher.name}</h4>
-                            <p className="text-sm text-muted-foreground">{teacher.subject}</p>
+              {teachersLoading ? (
+                <div className="text-center py-8">
+                  <p className="text-muted-foreground">Loading teachers...</p>
+                </div>
+              ) : teachersError ? (
+                <div className="text-center py-8">
+                  <p className="text-destructive">Failed to load teachers: {teachersError}</p>
+                </div>
+              ) : (
+                <div className="grid gap-4">
+                  {sectionTeachers.map((teacher) => {
+                    const hasFeedback = !!teacherFeedbacks[teacher.id];
+                    
+                    return (
+                      <div 
+                        key={teacher.id} 
+                        className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-accent/5 transition-colors"
+                      >
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-3">
+                            <div>
+                              <h4 className="font-medium">{teacher.name}</h4>
+                              <p className="text-sm text-muted-foreground">{teacher.subject}</p>
+                              {hasFeedback && (
+                                <p className="text-xs text-primary">
+                                  {teacherFeedbacks[teacher.id].questionRatings.length} questions rated
+                                </p>
+                              )}
+                            </div>
                             {hasFeedback && (
-                              <p className="text-xs text-primary">
-                                {teacherFeedbacks[teacher.id].questionRatings.length} questions rated
-                              </p>
+                              <CheckCircle2 className="h-5 w-5 text-success" />
                             )}
                           </div>
+                        </div>
+                        
+                        <div className="flex items-center space-x-3">
                           {hasFeedback && (
-                            <CheckCircle2 className="h-5 w-5 text-success" />
+                            <Badge variant="outline" className="text-success border-success">
+                              Overall: {teacherFeedbacks[teacher.id].overallRating}/10
+                            </Badge>
                           )}
+                          <Button
+                            variant={hasFeedback ? "outline" : "default"}
+                            onClick={() => setSelectedTeacher(teacher)}
+                            className={hasFeedback ? "border-success text-success hover:bg-success/10" : "btn-academic"}
+                          >
+                            {hasFeedback ? 'Edit Feedback' : 'Give Feedback'}
+                          </Button>
                         </div>
                       </div>
-                      
-                      <div className="flex items-center space-x-3">
-                        {hasFeedback && (
-                          <Badge variant="outline" className="text-success border-success">
-                            Overall: {teacherFeedbacks[teacher.id].overallRating}/10
-                          </Badge>
-                        )}
-                        <Button
-                          variant={hasFeedback ? "outline" : "default"}
-                          onClick={() => setSelectedTeacher(teacher)}
-                          className={hasFeedback ? "border-success text-success hover:bg-success/10" : "btn-academic"}
-                        >
-                          {hasFeedback ? 'Edit Feedback' : 'Give Feedback'}
-                        </Button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Submit All Button */}

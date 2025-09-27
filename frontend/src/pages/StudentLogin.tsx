@@ -7,12 +7,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ArrowLeft, GraduationCap, AlertCircle } from "lucide-react";
-import { useAuth, STUDENT_DATA, STUDENT_DOB_DATA } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 
 const StudentLogin = () => {
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { loginStudent } = useAuth();
   const [section, setSection] = useState<'A' | 'B' | ''>('');
   const [regNumber, setRegNumber] = useState('');
   const [dob, setDob] = useState('');
@@ -38,35 +38,14 @@ const StudentLogin = () => {
       return;
     }
 
-    // Check if registration number exists in the selected section
-    if (!STUDENT_DATA[section].includes(regNumber)) {
-      setError('Invalid registration number for the selected section');
-      setIsLoading(false);
-      return;
-    }
-
-    // Check if DOB matches the registration number
-    if (!STUDENT_DOB_DATA[regNumber] || STUDENT_DOB_DATA[regNumber] !== dob) {
-      setError('Invalid credentials. Please check your registration number and date of birth');
-      setIsLoading(false);
-      return;
-    }
-
-    // Simulate loading
-    setTimeout(() => {
-      const user = {
-        id: regNumber,
-        role: 'student' as const,
-        name: `Student ${regNumber}`,
-        section,
-        regNumber
-      };
-
-      login(user);
-      toast.success('Login successful! Redirecting to feedback form...');
+    try {
+      await loginStudent(regNumber, dob);
       navigate('/feedback');
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'Login failed. Please check your credentials.');
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
   return (
