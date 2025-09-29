@@ -2,7 +2,7 @@ from motor.motor_asyncio import AsyncIOMotorClient
 import os
 from typing import Optional, List, Dict, Any
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 logger = logging.getLogger(__name__)
 
@@ -16,15 +16,25 @@ def get_database():
 
 async def connect_to_mongo():
     """Create database connection"""
-    mongo_url = os.environ['MONGO_URL']
-    db_name = os.environ['DB_NAME']
+    mongo_url = os.environ.get('MONGO_URL')
+    db_name = os.environ.get('DB_NAME')
     
-    Database.client = AsyncIOMotorClient(mongo_url)
-    Database.database = Database.client[db_name]
+    if not mongo_url or not db_name:
+        raise ValueError("MONGO_URL and DB_NAME environment variables are required")
     
-    # Create indexes for better performance
-    await create_indexes()
-    logger.info(f"Connected to MongoDB: {db_name}")
+    try:
+        Database.client = AsyncIOMotorClient(mongo_url)
+        Database.database = Database.client[db_name]
+        
+        # Test connection
+        await Database.client.admin.command('ping')
+        
+        # Create indexes for better performance
+        await create_indexes()
+        logger.info(f"Connected to MongoDB: {db_name}")
+    except Exception as e:
+        logger.error(f"Failed to connect to MongoDB: {e}")
+        raise
 
 async def close_mongo_connection():
     """Close database connection"""
@@ -87,8 +97,9 @@ class DatabaseOperations:
     async def insert_one(collection: str, document: Dict[str, Any]) -> str:
         """Insert one document and return id"""
         db = get_database()
-        document['created_at'] = datetime.utcnow()
-        document['updated_at'] = datetime.utcnow()
+        now = datetime.now(timezone.utc)
+        document['created_at'] = now
+        document['updated_at'] = now
         result = await db[collection].insert_one(document)
         return str(result.inserted_id)
     
@@ -96,7 +107,7 @@ class DatabaseOperations:
     async def insert_many(collection: str, documents: List[Dict[str, Any]]) -> List[str]:
         """Insert multiple documents and return ids"""
         db = get_database()
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         for doc in documents:
             doc['created_at'] = now
             doc['updated_at'] = now
@@ -108,7 +119,7 @@ class DatabaseOperations:
                         update_dict: Dict[str, Any]) -> bool:
         """Update one document"""
         db = get_database()
-        update_dict['updated_at'] = datetime.utcnow()
+        update_dict['updated_at'] = datetime.now(timezone.utc)
         result = await db[collection].update_one(filter_dict, {"$set": update_dict})
         return result.modified_count > 0
     

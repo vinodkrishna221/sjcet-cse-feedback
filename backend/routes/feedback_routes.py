@@ -510,3 +510,63 @@ async def get_feedback_questions():
         message="Feedback questions retrieved successfully",
         data={"questions": questions}
     )
+
+@router.get("/bundles", response_model=APIResponse)
+async def get_feedback_bundles(admin: Any = Depends(get_current_admin)):
+    """Get all feedback bundles for admin dashboard"""
+    try:
+        # Get all feedback submissions
+        feedback_submissions = await DatabaseOperations.find_many(
+            "feedback_submissions",
+            {},
+            sort=[("submitted_at", -1)]
+        )
+        
+        # Convert to bundled format for frontend compatibility
+        bundled_feedback = []
+        for submission in feedback_submissions:
+            # Create anonymous student identifier
+            student_id = f"Student_{submission['anonymous_id'][:8]}"
+            
+            # Convert faculty feedbacks to the expected format
+            teacher_feedbacks = []
+            for faculty_feedback in submission.get('faculty_feedbacks', []):
+                # Convert question ratings to the expected format
+                question_ratings = []
+                for q_rating in faculty_feedback.get('question_ratings', []):
+                    question_ratings.append({
+                        "questionId": q_rating.get('question_id', ''),
+                        "question": q_rating.get('question', ''),
+                        "rating": q_rating.get('rating', 0)
+                    })
+                
+                teacher_feedbacks.append({
+                    "teacherId": faculty_feedback.get('faculty_id', ''),
+                    "teacherName": faculty_feedback.get('faculty_name', ''),
+                    "subject": faculty_feedback.get('subject', ''),
+                    "questionRatings": question_ratings,
+                    "overallRating": faculty_feedback.get('overall_rating', 0),
+                    "detailedFeedback": faculty_feedback.get('detailed_feedback', ''),
+                    "suggestions": faculty_feedback.get('suggestions', '')
+                })
+            
+            bundled_feedback.append({
+                "id": submission['id'],
+                "studentName": student_id,
+                "studentSection": submission.get('student_section', 'A'),
+                "teacherFeedbacks": teacher_feedbacks,
+                "submittedAt": submission.get('submitted_at', '').isoformat() if submission.get('submitted_at') else ''
+            })
+        
+        return APIResponse(
+            success=True,
+            message=f"Retrieved {len(bundled_feedback)} feedback bundles",
+            data={"bundles": bundled_feedback, "total": len(bundled_feedback)}
+        )
+        
+    except Exception as e:
+        logger.error(f"Error retrieving feedback bundles: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error retrieving feedback bundles"
+        )

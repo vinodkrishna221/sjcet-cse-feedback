@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const API_BASE_URL = import.meta.env.REACT_APP_BACKEND_URL || process.env.REACT_APP_BACKEND_URL || 'http://localhost:8001/api';
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || import.meta.env.REACT_APP_BACKEND_URL || 'http://localhost:8001/api';
 
 // API Response types
 export interface ApiResponse<T = any> {
@@ -253,6 +253,56 @@ class ApiService {
   async deleteFaculty(facultyId: string) {
     const response = await fetch(`${API_BASE_URL}/faculty/${facultyId}`, {
       method: 'DELETE',
+      headers: this.getAuthHeaders()
+    });
+
+    return this.handleResponse<ApiResponse>(response);
+  }
+
+  // Import students from CSV (for admin)
+  async importStudentsCSV(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const response = await fetch(`${API_BASE_URL}/students/import/csv`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+      },
+      body: formData
+    });
+
+    return this.handleResponse<ApiResponse>(response);
+  }
+
+  // Import faculty from CSV (for admin)
+  async importFacultyCSV(file: File) {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    const response = await fetch(`${API_BASE_URL}/faculty/import/csv`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+      },
+      body: formData
+    });
+
+    return this.handleResponse<ApiResponse>(response);
+  }
+
+  // Get section summary (for admin)
+  async getSectionSummary() {
+    const response = await fetch(`${API_BASE_URL}/students/sections/summary`, {
+      headers: this.getAuthHeaders()
+    });
+
+    return this.handleResponse<ApiResponse>(response);
+  }
+
+  // Get all subjects (for admin)
+  async getAllSubjects() {
+    const response = await fetch(`${API_BASE_URL}/faculty/subjects/list`, {
       headers: this.getAuthHeaders()
     });
 

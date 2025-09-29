@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Teacher, IndividualFeedback, FEEDBACK_QUESTIONS, QuestionRating } from "@/types/feedback";
 import { Star, MessageSquare, Lightbulb } from "lucide-react";
+import { toast } from "sonner";
 
 interface TeacherFeedbackModalProps {
   teacher: Teacher;
@@ -48,7 +49,15 @@ const TeacherFeedbackModal = ({
 
   const handleSave = () => {
     if (!suggestions.trim() || suggestions.length < 10) {
-      return; // Validation handled by disabled state
+      toast.error('Please provide suggestions (minimum 10 characters)');
+      return;
+    }
+
+    // Validate all questions are rated
+    const unratedQuestions = questionRatings.filter(qr => qr.rating < 1 || qr.rating > 10);
+    if (unratedQuestions.length > 0) {
+      toast.error('Please rate all questions');
+      return;
     }
 
     const feedbackData: IndividualFeedback = {

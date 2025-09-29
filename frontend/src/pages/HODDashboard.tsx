@@ -10,9 +10,35 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { LogOut, Eye, TrendingUp, Users, Star, BookOpen, Package, Upload, Download, CircleAlert as AlertCircle } from "lucide-react";
 import { FiUserPlus } from "react-icons/fi";
-import { useAuth, STUDENT_DETAILS, StudentDetails, TEACHER_DETAILS, TeacherDetails } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContext";
+import { apiService } from "@/services/api";
 import { toast } from "sonner";
 import Papa from 'papaparse';
+
+// Backend-compatible interfaces based on models.py
+interface StudentDetails {
+  id: string;
+  reg_number: string;
+  name: string;
+  section: 'A' | 'B';
+  dob: string;
+  email?: string;
+  phone?: string;
+  year?: string;
+  branch?: string;
+}
+
+interface TeacherDetails {
+  id: string;
+  faculty_id: string;
+  name: string;
+  subjects: string[];
+  sections: ('A' | 'B')[];
+  email?: string;
+  phone?: string;
+  department?: string;
+  designation?: string;
+}
 
 interface BundledFeedback {
   studentId: string;
@@ -45,11 +71,11 @@ export default function HODDashboard() {
   const [legacyData, setLegacyData] = useState<LegacyFeedbackData[]>([]);
   
   // Student management state
-  const [students, setStudents] = useState<StudentDetails[]>(STUDENT_DETAILS);
-  const [newStudent, setNewStudent] = useState<StudentDetails>({
-    regNumber: '',
+  const [students, setStudents] = useState<StudentDetails[]>([]);
+  const [newStudent, setNewStudent] = useState<Partial<StudentDetails>>({
+    reg_number: '',
     name: '',
-    section: '',
+    section: 'A',
     dob: '',
     email: '',
     phone: ''
@@ -61,9 +87,9 @@ export default function HODDashboard() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Teacher management state
-  const [teachers, setTeachers] = useState<TeacherDetails[]>(TEACHER_DETAILS);
-  const [newTeacher, setNewTeacher] = useState<TeacherDetails>({
-    id: '',
+  const [teachers, setTeachers] = useState<TeacherDetails[]>([]);
+  const [newTeacher, setNewTeacher] = useState<Partial<TeacherDetails>>({
+    faculty_id: '',
     name: '',
     subjects: [],
     sections: [],
@@ -79,38 +105,52 @@ export default function HODDashboard() {
       return;
     }
 
-    // Simulated data fetch
-    const mockFeedbackData: BundledFeedback[] = [
-      {
-        studentId: "24G31A0501",
-        section: "A",
-        timestamp: new Date().toISOString(),
-        feedbacks: [
-          { teacherId: "T001", teacherName: "Dr. Rajesh Kumar", subject: "Data Structures", rating: 4, comments: "Good teaching methods" },
-          { teacherId: "T002", teacherName: "Dr. Priya Sharma", subject: "Database Systems", rating: 5, comments: "Excellent explanations" }
-        ]
-      },
-      {
-        studentId: "24G31A0502",
-        section: "A",
-        timestamp: new Date().toISOString(),
-        feedbacks: [
-          { teacherId: "T001", teacherName: "Dr. Rajesh Kumar", subject: "Data Structures", rating: 3, comments: "Could improve practical examples" },
-          { teacherId: "T002", teacherName: "Dr. Priya Sharma", subject: "Database Systems", rating: 4, comments: "Good teaching" }
-        ]
-      }
-    ];
-
-    const mockLegacyData: LegacyFeedbackData[] = [
-      { id: 1, teacherId: "T001", teacherName: "Dr. Rajesh Kumar", subject: "Data Structures", section: "A", rating: 4.5, feedbackCount: 10 },
-      { id: 2, teacherId: "T002", teacherName: "Dr. Priya Sharma", subject: "Database Systems", section: "A", rating: 4.2, feedbackCount: 8 },
-      { id: 3, teacherId: "T003", teacherName: "Prof. Amit Verma", subject: "Computer Networks", section: "B", rating: 3.8, feedbackCount: 12 },
-      { id: 4, teacherId: "T004", teacherName: "Dr. Sneha Patel", subject: "Operating Systems", section: "B", rating: 4.0, feedbackCount: 9 }
-    ];
-
-    setFeedbackData(mockFeedbackData);
-    setLegacyData(mockLegacyData);
+    // Load data from backend
+    loadDashboardData();
   }, [user, navigate]);
+
+  const loadDashboardData = async () => {
+    try {
+      // Load students
+      const studentsResponse = await apiService.getAllStudents();
+      if (studentsResponse.success && studentsResponse.data?.students) {
+        setStudents(studentsResponse.data.students);
+      }
+
+      // Load teachers
+      const teachersResponse = await apiService.getAllFaculty();
+      if (teachersResponse.success && teachersResponse.data?.faculty) {
+        setTeachers(teachersResponse.data.faculty);
+      }
+
+      // Load feedback analytics
+      const analyticsResponse = await apiService.getFeedbackAnalytics();
+      if (analyticsResponse.success && analyticsResponse.data) {
+        // Process analytics data for dashboard
+        const analytics = analyticsResponse.data;
+        
+        // Convert analytics to legacy format for compatibility
+        const legacyData: LegacyFeedbackData[] = [];
+        if (analytics.top_faculty) {
+          analytics.top_faculty.forEach((faculty: any, index: number) => {
+            legacyData.push({
+              id: index + 1,
+              teacherId: faculty.faculty_id,
+              teacherName: faculty.faculty_name,
+              subject: faculty.subject,
+              section: "A", // Default section, will be updated based on actual data
+              rating: faculty.average_rating,
+              feedbackCount: faculty.total_feedback
+            });
+          });
+        }
+        setLegacyData(legacyData);
+      }
+    } catch (error) {
+      console.error('Error loading dashboard data:', error);
+      toast.error('Failed to load dashboard data');
+    }
+  };
 
   const handleLogout = () => {
     logout();
@@ -123,33 +163,49 @@ export default function HODDashboard() {
   };
   
   // Student management handlers
-  const handleAddStudent = () => {
+  const handleAddStudent = async () => {
     // Validate required fields
-    if (!newStudent.regNumber || !newStudent.name || !newStudent.section || !newStudent.dob) {
+    if (!newStudent.reg_number || !newStudent.name || !newStudent.section || !newStudent.dob) {
       toast.error("Please fill all required fields");
       return;
     }
     
-    // Check if registration number already exists
-    if (students.some(student => student.regNumber === newStudent.regNumber)) {
-      toast.error("Student with this registration number already exists");
-      return;
+    try {
+      const studentData = {
+        reg_number: newStudent.reg_number,
+        name: newStudent.name,
+        section: newStudent.section,
+        dob: newStudent.dob,
+        email: newStudent.email || undefined,
+        phone: newStudent.phone || undefined,
+        year: newStudent.year || undefined,
+        branch: newStudent.branch || undefined
+      };
+
+      const response = await apiService.createStudent(studentData);
+      
+      if (response.success) {
+        // Reload students list
+        await loadDashboardData();
+        
+        // Reset form
+        setNewStudent({
+          reg_number: '',
+          name: '',
+          section: 'A',
+          dob: '',
+          email: '',
+          phone: ''
+        });
+        
+        toast.success("Student registered successfully");
+      } else {
+        toast.error(response.message || "Failed to create student");
+      }
+    } catch (error) {
+      console.error('Error creating student:', error);
+      toast.error("Failed to create student");
     }
-    
-    // Add new student
-    setStudents([...students, newStudent]);
-    
-    // Reset form
-    setNewStudent({
-      regNumber: '',
-      name: '',
-      section: '',
-      dob: '',
-      email: '',
-      phone: ''
-    });
-    
-    toast.success("Student registered successfully");
   };
   
   const handleStudentInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -158,11 +214,11 @@ export default function HODDashboard() {
   };
   
   const handleStudentSectionChange = (value: string) => {
-    setNewStudent(prev => ({ ...prev, section: value }));
+    setNewStudent(prev => ({ ...prev, section: value as 'A' | 'B' }));
   };
   
   // Bulk import functionality
-  const handleBulkImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBulkImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
     setImportErrors([]);
     setShowImportErrors(false);
     setImportSuccess(0);
@@ -179,23 +235,24 @@ export default function HODDashboard() {
         
         results.data.forEach((row: any, index: number) => {
           // Validate required fields
-          if (!row.regNumber || !row.name || !row.section || !row.dob) {
+          if (!row.reg_number || !row.name || !row.section || !row.dob) {
             errors.push(`Row ${index + 1}: Missing required fields`);
             return;
           }
           
           // Check for duplicate registration numbers
-          if (students.some(s => s.regNumber === row.regNumber) || 
-              validStudents.some(s => s.regNumber === row.regNumber)) {
-            errors.push(`Row ${index + 1}: Registration number ${row.regNumber} already exists`);
+          if (students.some(s => s.reg_number === row.reg_number) || 
+              validStudents.some(s => s.reg_number === row.reg_number)) {
+            errors.push(`Row ${index + 1}: Registration number ${row.reg_number} already exists`);
             return;
           }
           
           // Add valid student
           validStudents.push({
-            regNumber: row.regNumber,
+            id: `temp_${Date.now()}_${index}`, // Temporary ID for local state
+            reg_number: row.reg_number,
             name: row.name,
-            section: row.section,
+            section: row.section as 'A' | 'B',
             dob: row.dob,
             email: row.email || '',
             phone: row.phone || ''
@@ -203,9 +260,36 @@ export default function HODDashboard() {
         });
         
         if (validStudents.length > 0) {
-          setStudents(prev => [...prev, ...validStudents]);
-          setImportSuccess(validStudents.length);
-          toast.success(`Successfully imported ${validStudents.length} students`);
+          // Send to backend for actual import
+          const importToBackend = async () => {
+            try {
+              // Create a temporary CSV file for backend import
+              const csvContent = validStudents.map(student => 
+                `${student.reg_number},${student.name},${student.section},${student.dob},${student.email || ''},${student.phone || ''}`
+              ).join('\n');
+              const csvHeader = 'reg_number,name,section,dob,email,phone\n';
+              const fullCsv = csvHeader + csvContent;
+              
+              const blob = new Blob([fullCsv], { type: 'text/csv' });
+              const file = new File([blob], 'students.csv', { type: 'text/csv' });
+              
+              const response = await apiService.importStudentsCSV(file);
+              
+              if (response.success) {
+                // Reload students from backend
+                await loadDashboardData();
+                setImportSuccess(validStudents.length);
+                toast.success(`Successfully imported ${validStudents.length} students`);
+              } else {
+                toast.error(response.message || 'Failed to import students');
+              }
+            } catch (error) {
+              console.error('Error importing students:', error);
+              toast.error('Failed to import students');
+            }
+          };
+          
+          importToBackend();
         }
         
         if (errors.length > 0) {
@@ -226,7 +310,7 @@ export default function HODDashboard() {
   };
   
   const handleDownloadTemplate = () => {
-    const headers = "regNumber,name,section,dob,email,phone\n";
+    const headers = "reg_number,name,section,dob,email,phone\n";
     const sampleData = "24G31A0599,John Doe,A,2000-01-01,john@example.com,9876543210\n";
     
     const blob = new Blob([headers + sampleData], { type: 'text/csv' });
@@ -248,34 +332,50 @@ export default function HODDashboard() {
     : students.filter(student => student.section === studentFilter);
   
   // Teacher management handlers
-  const handleAddTeacher = () => {
+  const handleAddTeacher = async () => {
     // Validate required fields
-    if (!newTeacher.id || !newTeacher.name || newTeacher.subjects.length === 0 || newTeacher.sections.length === 0) {
+    if (!newTeacher.faculty_id || !newTeacher.name || !newTeacher.subjects?.length || !newTeacher.sections?.length) {
       toast.error("Please fill all required fields");
       return;
     }
     
-    // Check if teacher ID already exists
-    if (teachers.some(teacher => teacher.id === newTeacher.id)) {
-      toast.error("Teacher with this ID already exists");
-      return;
+    try {
+      const teacherData = {
+        faculty_id: newTeacher.faculty_id,
+        name: newTeacher.name,
+        subjects: newTeacher.subjects,
+        sections: newTeacher.sections,
+        email: newTeacher.email || undefined,
+        phone: newTeacher.phone || undefined,
+        department: newTeacher.department || undefined,
+        designation: newTeacher.designation || undefined
+      };
+
+      const response = await apiService.createFaculty(teacherData);
+      
+      if (response.success) {
+        // Reload teachers list
+        await loadDashboardData();
+        
+        // Reset form
+        setNewTeacher({
+          faculty_id: '',
+          name: '',
+          subjects: [],
+          sections: [],
+          email: '',
+          phone: ''
+        });
+        setNewSubject('');
+        
+        toast.success("Teacher registered successfully");
+      } else {
+        toast.error(response.message || "Failed to create teacher");
+      }
+    } catch (error) {
+      console.error('Error creating teacher:', error);
+      toast.error("Failed to create teacher");
     }
-    
-    // Add new teacher
-    setTeachers([...teachers, newTeacher]);
-    
-    // Reset form
-    setNewTeacher({
-      id: '',
-      name: '',
-      subjects: [],
-      sections: [],
-      email: '',
-      phone: ''
-    });
-    setNewSubject('');
-    
-    toast.success("Teacher registered successfully");
   };
   
   const handleTeacherInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -305,9 +405,9 @@ export default function HODDashboard() {
     }));
   };
   
-  const handleSectionToggle = (section: string) => {
+  const handleSectionToggle = (section: 'A' | 'B') => {
     setNewTeacher(prev => {
-      const sections = prev.sections || [];
+      const sections = (prev.sections || []) as ('A' | 'B')[];
       if (sections.includes(section)) {
         return { ...prev, sections: sections.filter(s => s !== section) };
       } else {
@@ -479,12 +579,12 @@ export default function HODDashboard() {
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="regNumber">Registration Number*</Label>
+                      <Label htmlFor="reg_number">Registration Number*</Label>
                       <Input 
-                        id="regNumber" 
-                        name="regNumber" 
+                        id="reg_number" 
+                        name="reg_number" 
                         placeholder="e.g., 24G31A0501" 
-                        value={newStudent.regNumber} 
+                        value={newStudent.reg_number || ''} 
                         onChange={handleStudentInputChange}
                       />
                     </div>
@@ -494,7 +594,7 @@ export default function HODDashboard() {
                         id="name" 
                         name="name" 
                         placeholder="Student Name" 
-                        value={newStudent.name} 
+                        value={newStudent.name || ''} 
                         onChange={handleStudentInputChange}
                       />
                     </div>
@@ -504,7 +604,7 @@ export default function HODDashboard() {
                     <div className="space-y-2">
                       <Label htmlFor="section">Section*</Label>
                       <Select 
-                        value={newStudent.section} 
+                        value={newStudent.section || 'A'} 
                         onValueChange={handleStudentSectionChange}
                       >
                         <SelectTrigger>
@@ -522,7 +622,7 @@ export default function HODDashboard() {
                         id="dob" 
                         name="dob" 
                         type="date" 
-                        value={newStudent.dob} 
+                        value={newStudent.dob || ''} 
                         onChange={handleStudentInputChange}
                       />
                     </div>
@@ -536,7 +636,7 @@ export default function HODDashboard() {
                         name="email" 
                         type="email" 
                         placeholder="student@example.com" 
-                        value={newStudent.email} 
+                        value={newStudent.email || ''} 
                         onChange={handleStudentInputChange}
                       />
                     </div>
@@ -546,7 +646,7 @@ export default function HODDashboard() {
                         id="phone" 
                         name="phone" 
                         placeholder="Phone number" 
-                        value={newStudent.phone} 
+                        value={newStudent.phone || ''} 
                         onChange={handleStudentInputChange}
                       />
                     </div>
@@ -664,8 +764,8 @@ export default function HODDashboard() {
                     <TableBody>
                       {filteredStudents.length > 0 ? (
                         filteredStudents.map((student) => (
-                          <TableRow key={student.regNumber}>
-                            <TableCell>{student.regNumber}</TableCell>
+                          <TableRow key={student.reg_number}>
+                            <TableCell>{student.reg_number}</TableCell>
                             <TableCell>{student.name}</TableCell>
                             <TableCell>Section {student.section}</TableCell>
                             <TableCell>{student.dob}</TableCell>
@@ -697,12 +797,12 @@ export default function HODDashboard() {
                 <div className="space-y-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="id">Teacher ID*</Label>
+                      <Label htmlFor="faculty_id">Teacher ID*</Label>
                       <Input 
-                        id="id" 
-                        name="id" 
+                        id="faculty_id" 
+                        name="faculty_id" 
                         placeholder="e.g., T001" 
-                        value={newTeacher.id} 
+                        value={newTeacher.faculty_id || ''} 
                         onChange={handleTeacherInputChange}
                       />
                     </div>
@@ -712,7 +812,7 @@ export default function HODDashboard() {
                         id="name" 
                         name="name" 
                         placeholder="Teacher Name" 
-                        value={newTeacher.name} 
+                        value={newTeacher.name || ''} 
                         onChange={handleTeacherInputChange}
                       />
                     </div>
@@ -777,7 +877,7 @@ export default function HODDashboard() {
                         name="email" 
                         type="email" 
                         placeholder="teacher@example.com" 
-                        value={newTeacher.email} 
+                        value={newTeacher.email || ''} 
                         onChange={handleTeacherInputChange}
                       />
                     </div>
@@ -787,7 +887,7 @@ export default function HODDashboard() {
                         id="phone" 
                         name="phone" 
                         placeholder="Phone number" 
-                        value={newTeacher.phone} 
+                        value={newTeacher.phone || ''} 
                         onChange={handleTeacherInputChange}
                       />
                     </div>
@@ -819,8 +919,8 @@ export default function HODDashboard() {
                     <TableBody>
                       {teachers.length > 0 ? (
                         teachers.map((teacher) => (
-                          <TableRow key={teacher.id}>
-                            <TableCell>{teacher.id}</TableCell>
+                          <TableRow key={teacher.faculty_id}>
+                            <TableCell>{teacher.faculty_id}</TableCell>
                             <TableCell>{teacher.name}</TableCell>
                             <TableCell>
                               <div className="flex flex-wrap gap-1">

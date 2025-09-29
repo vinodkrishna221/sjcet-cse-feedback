@@ -3,16 +3,21 @@ from datetime import datetime, timedelta
 from typing import Optional, Dict, Any
 import jwt
 import os
+import logging
 from models import Admin, Student
 from database import DatabaseOperations
+
+logger = logging.getLogger(__name__)
 
 # Password hashing
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
 
 # JWT settings
-SECRET_KEY = os.environ.get("SECRET_KEY", "your-secret-key-change-this-in-production")
+SECRET_KEY = os.environ.get("SECRET_KEY")
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY environment variable is required for security")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 24 * 60  # 24 hours
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", "480"))  # 8 hours default
 
 class AuthService:
     
@@ -24,11 +29,8 @@ class AuthService:
             plain_password = plain_password[:72]
             return pwd_context.verify(plain_password, hashed_password)
         except Exception as e:
-            print(f"Bcrypt verification failed, trying SHA256: {e}")
-            # Fallback to SHA256 verification
-            import hashlib
-            sha256_hash = hashlib.sha256(plain_password.encode()).hexdigest()
-            return sha256_hash == hashed_password
+            logger.error(f"Password verification failed: {e}")
+            return False
     
     @staticmethod
     def get_password_hash(password: str) -> str:
@@ -38,10 +40,8 @@ class AuthService:
             password = password[:72]
             return pwd_context.hash(password)
         except Exception as e:
-            print(f"Password hashing error: {e}")
-            # Fallback to a simple hash if bcrypt fails
-            import hashlib
-            return hashlib.sha256(password.encode()).hexdigest()
+            logger.error(f"Password hashing error: {e}")
+            raise ValueError("Password hashing failed")
     
     @staticmethod
     def create_access_token(data: Dict[str, Any], expires_delta: Optional[timedelta] = None) -> str:

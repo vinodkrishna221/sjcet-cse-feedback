@@ -42,7 +42,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     const token = localStorage.getItem('authToken');
     if (token) {
-      verifyToken();
+      verifyToken().catch(() => {
+        // Token is invalid, clear storage
+        logout();
+      });
     }
   }, []);
 
@@ -66,10 +69,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         };
         setUser(userData);
         localStorage.setItem('feedbackPortalUser', JSON.stringify(userData));
+        return userData;
+      } else {
+        throw new Error('Invalid token response');
       }
     } catch (error) {
       // Token is invalid, clear storage
       logout();
+      throw error;
     }
   };
 
