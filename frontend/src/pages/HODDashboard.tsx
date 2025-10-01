@@ -574,6 +574,145 @@ export default function HODDashboard() {
           </div>
         </TabsContent>
 
+        {/* Student Bundles Tab */}
+        <TabsContent value="student-bundles">
+          <Card>
+            <CardHeader>
+              <CardTitle>Student Bundles</CardTitle>
+              <CardDescription>All consolidated submissions</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="border rounded-md">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Bundle ID</TableHead>
+                      <TableHead>Student</TableHead>
+                      <TableHead>Section</TableHead>
+                      <TableHead>Teachers Rated</TableHead>
+                      <TableHead>Submitted At</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {feedbackData.length > 0 ? (
+                      feedbackData.map(bundle => (
+                        <TableRow key={bundle.id}>
+                          <TableCell>{bundle.id}</TableCell>
+                          <TableCell>{bundle.studentName}</TableCell>
+                          <TableCell>{bundle.studentSection}</TableCell>
+                          <TableCell>{bundle.teacherFeedbacks.length}</TableCell>
+                          <TableCell>{bundle.submittedAt ? new Date(bundle.submittedAt).toLocaleString() : '-'}</TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-4">No bundles found</TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* All Feedback Tab */}
+        <TabsContent value="all-feedback">
+          <Card>
+            <CardHeader>
+              <CardTitle>All Feedback</CardTitle>
+              <CardDescription>Flattened teacher feedback from all bundles</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="border rounded-md">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Teacher</TableHead>
+                      <TableHead>Subject</TableHead>
+                      <TableHead>Section</TableHead>
+                      <TableHead>Overall Rating</TableHead>
+                      <TableHead>Submitted At</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {feedbackData.flatMap(b => b.teacherFeedbacks.map(tf => ({ tf, b }))).length > 0 ? (
+                      feedbackData.flatMap(b => b.teacherFeedbacks.map(tf => ({ tf, b }))).map(({ tf, b }, idx) => (
+                        <TableRow key={`${b.id}_${idx}`}>
+                          <TableCell>{tf.teacherName}</TableCell>
+                          <TableCell>{tf.subject}</TableCell>
+                          <TableCell>{b.studentSection}</TableCell>
+                          <TableCell>{tf.overallRating}</TableCell>
+                          <TableCell>{b.submittedAt ? new Date(b.submittedAt).toLocaleString() : '-'}</TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell colSpan={5} className="text-center py-4">No feedback found</TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Faculty Tab - simple aggregation from bundles */}
+        <TabsContent value="faculty">
+          <Card>
+            <CardHeader>
+              <CardTitle>Faculty Performance</CardTitle>
+              <CardDescription>Average rating per teacher (from submissions)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="border rounded-md">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Teacher</TableHead>
+                      <TableHead>Subject</TableHead>
+                      <TableHead>Ratings Count</TableHead>
+                      <TableHead>Average Rating</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(() => {
+                      const rows: { key: string; teacherName: string; subject: string; count: number; avg: number }[] = [];
+                      const map = new Map<string, { sum: number; count: number; teacherName: string; subject: string }>();
+                      feedbackData.forEach(b => {
+                        b.teacherFeedbacks.forEach(tf => {
+                          const key = `${tf.teacherId}|${tf.subject}`;
+                          const entry = map.get(key) || { sum: 0, count: 0, teacherName: tf.teacherName, subject: tf.subject };
+                          entry.sum += typeof tf.overallRating === 'number' ? tf.overallRating : 0;
+                          entry.count += 1;
+                          map.set(key, entry);
+                        });
+                      });
+                      map.forEach((v, k) => rows.push({ key: k, teacherName: v.teacherName, subject: v.subject, count: v.count, avg: v.count ? +(v.sum / v.count).toFixed(2) : 0 }));
+                      if (rows.length === 0) {
+                        return (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center py-4">No faculty ratings yet</TableCell>
+                          </TableRow>
+                        );
+                      }
+                      return rows.map(r => (
+                        <TableRow key={r.key}>
+                          <TableCell>{r.teacherName}</TableCell>
+                          <TableCell>{r.subject}</TableCell>
+                          <TableCell>{r.count}</TableCell>
+                          <TableCell>{r.avg}</TableCell>
+                        </TableRow>
+                      ));
+                    })()}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="students">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card>
