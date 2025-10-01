@@ -25,6 +25,16 @@ async def get_current_admin(credentials: HTTPAuthorizationCredentials = Depends(
         )
     return admin
 
+async def get_current_student(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Dependency to get current student user"""
+    student = await AuthService.get_current_student(credentials.credentials)
+    if not student:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Student access required"
+        )
+    return student
+
 @router.get("/", response_model=APIResponse)
 async def get_all_faculty(
     section: Optional[str] = None,
@@ -430,7 +440,7 @@ async def import_faculty_csv(
 @router.get("/by-section/{section}", response_model=APIResponse)
 async def get_faculty_by_section(
     section: str,
-    admin: Any = Depends(get_current_admin)
+    student: Any = Depends(get_current_student)
 ):
     """Get faculty members teaching a specific section"""
     try:

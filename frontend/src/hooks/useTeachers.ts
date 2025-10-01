@@ -25,7 +25,8 @@ export const useTeachers = (section: string | undefined) => {
         const response = await apiService.getTeachersBySection(section);
         
         if (response.success && response.data) {
-          setTeachers(response.data);
+          // Backend returns data: { faculty: Teacher[] }
+          setTeachers(response.data.faculty || []);
         } else {
           throw new Error(response.message || 'Failed to fetch teachers');
         }
@@ -51,7 +52,7 @@ export const useTeachers = (section: string | undefined) => {
       const response = await apiService.getTeachersBySection(section);
       
       if (response.success && response.data) {
-        setTeachers(response.data);
+        setTeachers(response.data.faculty || []);
       } else {
         throw new Error(response.message || 'Failed to fetch teachers');
       }
