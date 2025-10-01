@@ -4,13 +4,33 @@ from typing import Optional, Dict, Any
 import jwt
 import os
 import logging
+import bcrypt
 from models import Admin, Student
 from database import DatabaseOperations
 
 logger = logging.getLogger(__name__)
 
-# Password hashing
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto", bcrypt__rounds=12)
+# Password hashing - use bcrypt directly for better compatibility
+def hash_password(password: str) -> str:
+    """Hash password using bcrypt directly"""
+    # Ensure password is not longer than 72 bytes for bcrypt compatibility
+    password_bytes = password.encode('utf-8')
+    if len(password_bytes) > 72:
+        password_bytes = password_bytes[:72]
+    salt = bcrypt.gensalt(rounds=12)
+    return bcrypt.hashpw(password_bytes, salt).decode('utf-8')
+
+def verify_password(plain_password: str, hashed_password: str) -> bool:
+    """Verify password using bcrypt directly"""
+    try:
+        # Ensure password is not longer than 72 bytes for bcrypt compatibility
+        password_bytes = plain_password.encode('utf-8')
+        if len(password_bytes) > 72:
+            password_bytes = password_bytes[:72]
+        return bcrypt.checkpw(password_bytes, hashed_password.encode('utf-8'))
+    except Exception as e:
+        logger.error(f"Password verification failed: {e}")
+        return False
 
 # JWT settings
 SECRET_KEY = os.environ.get("SECRET_KEY")
@@ -24,21 +44,13 @@ class AuthService:
     @staticmethod
     def verify_password(plain_password: str, hashed_password: str) -> bool:
         """Verify password against hash"""
-        try:
-            # Truncate password to 72 bytes for bcrypt compatibility
-            plain_password = plain_password[:72]
-            return pwd_context.verify(plain_password, hashed_password)
-        except Exception as e:
-            logger.error(f"Password verification failed: {e}")
-            return False
+        return verify_password(plain_password, hashed_password)
     
     @staticmethod
     def get_password_hash(password: str) -> str:
         """Hash password"""
         try:
-            # Truncate password to 72 bytes for bcrypt compatibility
-            password = password[:72]
-            return pwd_context.hash(password)
+            return hash_password(password)
         except Exception as e:
             logger.error(f"Password hashing error: {e}")
             raise ValueError("Password hashing failed")
@@ -78,8 +90,7 @@ class AuthService:
         if not admin_data:
             return None
         
-        # Truncate password to 72 bytes for bcrypt compatibility
-        password = password[:72]
+        # Password will be handled by the verify_password function
         
         try:
             if not AuthService.verify_password(password, admin_data["password_hash"]):
@@ -172,16 +183,23 @@ class AuthHelpers:
         ]
         
         for admin_data in admins_to_create:
-            # Delete existing admin if exists
-            await DatabaseOperations.delete_one(
-                "admins",
-                {"username": admin_data["username"]}
-            )
-            
-            # Create new admin with proper password handling
-            password = admin_data["password"][:72]  # Truncate to 72 bytes for bcrypt
             try:
+                logger.info(f"Initializing admin account: {admin_data['username']}")
+                
+                # Delete existing admin if exists
+                await DatabaseOperations.delete_one(
+                    "admins",
+                    {"username": admin_data["username"]}
+                )
+                
+                # Create new admin with proper password handling
+                password = admin_data["password"]
+                logger.info(f"Password length: {len(password.encode('utf-8'))} bytes")
+                
+                logger.info(f"Attempting to hash password for {admin_data['username']}")
                 password_hash = AuthService.get_password_hash(password)
+                logger.info(f"Password hashed successfully for {admin_data['username']}")
+                
                 admin_doc = {
                     "id": str(uuid.uuid4()),  # Generate UUID for id field
                     "username": admin_data["username"],
@@ -193,8 +211,10 @@ class AuthHelpers:
                 }
                 
                 await DatabaseOperations.insert_one("admins", admin_doc)
+                logger.info(f"Created admin account: {admin_data['username']} with ID: {admin_doc['id']}")
                 print(f"Created admin account: {admin_data['username']} with ID: {admin_doc['id']}")
             except Exception as e:
+                logger.error(f"Error creating admin {admin_data['username']}: {e}")
                 print(f"Error creating admin {admin_data['username']}: {e}")
     
     @staticmethod
