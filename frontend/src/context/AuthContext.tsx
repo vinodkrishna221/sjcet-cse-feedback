@@ -20,9 +20,10 @@ interface AuthContextType {
   login: (user: User) => void;
   logout: () => void;
   isAuthenticated: boolean;
+  isAuthLoading: boolean;
   loginStudent: (regNumber: string, dob: string) => Promise<void>;
   loginAdmin: (username: string, password: string) => Promise<void>;
-  verifyToken: () => Promise<void>;
+  verifyToken: () => Promise<User>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -37,16 +38,27 @@ export const useAuth = () => {
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
 
   // Check for existing session on mount
   useEffect(() => {
-    const token = localStorage.getItem('authToken');
-    if (token) {
-      verifyToken().catch(() => {
-        // Token is invalid, clear storage
-        logout();
-      });
-    }
+    const init = async () => {
+      const token = localStorage.getItem('authToken');
+      if (token) {
+        try {
+          setIsAuthLoading(true);
+          await verifyToken();
+        } catch {
+          // Token is invalid, clear storage
+          logout();
+        } finally {
+          setIsAuthLoading(false);
+        }
+      } else {
+        setIsAuthLoading(false);
+      }
+    };
+    init();
   }, []);
 
   const login = (userData: User) => {
@@ -146,7 +158,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       user, 
       login, 
       logout, 
-      isAuthenticated, 
+      isAuthenticated,
+      isAuthLoading,
       loginStudent, 
       loginAdmin,
       verifyToken
