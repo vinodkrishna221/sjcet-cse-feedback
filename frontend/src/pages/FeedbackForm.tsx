@@ -40,20 +40,29 @@ const FeedbackForm = () => {
     setIsSubmitting(true);
 
     try {
-      // Prepare feedback data for backend
+      // Prepare feedback data for backend schema (FeedbackCreate)
+      const toFiveScale = (value: number) => {
+        // Convert 1-10 scale to 1-5 (rounded to nearest integer within bounds)
+        const converted = Math.round(value / 2);
+        return Math.min(5, Math.max(1, converted));
+      };
+
       const feedbackData = {
         student_section: user?.section,
-        teacher_feedbacks: Object.values(teacherFeedbacks).map(tf => ({
-          teacher_id: tf.teacherId,
-          teacher_name: tf.teacherName,
+        faculty_feedbacks: Object.values(teacherFeedbacks).map(tf => ({
+          faculty_id: tf.teacherId,
+          faculty_name: tf.teacherName,
           subject: tf.subject,
-          rating: tf.rating,
-          question_ratings: tf.questionRatings,
-          feedback: tf.feedback || '',
-          suggestions: tf.suggestions || '',
-          overall_rating: tf.overallRating
+          question_ratings: tf.questionRatings.map(qr => ({
+            question_id: qr.questionId,
+            question: qr.question,
+            rating: toFiveScale(qr.rating)
+          })),
+          overall_rating: parseFloat((tf.overallRating / 2).toFixed(1)),
+          detailed_feedback: (tf as any).detailedFeedback || '',
+          suggestions: tf.suggestions || ''
         }))
-      };
+      } as const;
 
       const response = await apiService.submitFeedback(feedbackData);
       
