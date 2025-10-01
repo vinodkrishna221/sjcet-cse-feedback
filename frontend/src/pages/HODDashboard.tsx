@@ -14,6 +14,7 @@ import { useAuth } from "@/context/AuthContext";
 import { apiService } from "@/services/api";
 import { toast } from "sonner";
 import Papa from 'papaparse';
+import { BundledFeedback as SubmissionBundle } from "@/types/feedback";
 
 // Backend-compatible interfaces based on models.py
 interface StudentDetails {
@@ -40,18 +41,7 @@ interface TeacherDetails {
   designation?: string;
 }
 
-interface BundledFeedback {
-  studentId: string;
-  section: string;
-  timestamp: string;
-  feedbacks: {
-    teacherId: string;
-    teacherName: string;
-    subject: string;
-    rating: number;
-    comments: string;
-  }[];
-}
+// Use shared bundled feedback type from types/feedback
 
 interface LegacyFeedbackData {
   id: number;
@@ -67,8 +57,9 @@ export default function HODDashboard() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState("overview");
-  const [feedbackData, setFeedbackData] = useState<BundledFeedback[]>([]);
+  const [feedbackData, setFeedbackData] = useState<SubmissionBundle[]>([]);
   const [legacyData, setLegacyData] = useState<LegacyFeedbackData[]>([]);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   
   // Student management state
   const [students, setStudents] = useState<StudentDetails[]>([]);
@@ -111,6 +102,7 @@ export default function HODDashboard() {
 
   const loadDashboardData = async () => {
     try {
+      setIsLoading(true);
       // Load students
       const studentsResponse = await apiService.getAllStudents();
       if (studentsResponse.success && studentsResponse.data?.students) {
@@ -146,9 +138,17 @@ export default function HODDashboard() {
         }
         setLegacyData(legacyData);
       }
+
+      // Load feedback bundles (student submissions)
+      const bundlesResponse = await apiService.getFeedbackBundles();
+      if (bundlesResponse.success && bundlesResponse.data?.bundles) {
+        setFeedbackData(bundlesResponse.data.bundles);
+      }
     } catch (error) {
       console.error('Error loading dashboard data:', error);
       toast.error('Failed to load dashboard data');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -417,13 +417,19 @@ export default function HODDashboard() {
   };
 
   // Calculate statistics
-  const totalResponses = feedbackData.length;
-  const sectionACount = feedbackData.filter(fb => fb.section === "A").length;
-  const sectionBCount = feedbackData.filter(fb => fb.section === "B").length;
-  const averageRating = feedbackData.length > 0 
-    ? (feedbackData.flatMap(fb => fb.feedbacks).reduce((sum, fb) => sum + fb.rating, 0) / 
-       feedbackData.flatMap(fb => fb.feedbacks).length).toFixed(1)
+  const totalResponses = feedbackData.length; // number of student submissions
+  const totalTeacherRatings = feedbackData.flatMap(b => b.teacherFeedbacks).length;
+  const averageRating = totalTeacherRatings > 0
+    ? (
+        feedbackData
+          .flatMap(b => b.teacherFeedbacks)
+          .reduce((sum, tf) => sum + (typeof tf.overallRating === 'number' ? tf.overallRating : 0), 0) / totalTeacherRatings
+      ).toFixed(1)
     : "0";
+
+  // Students per section
+  const sectionAStudents = students.filter(s => s.section === 'A').length;
+  const sectionBStudents = students.filter(s => s.section === 'B').length;
 
   return (
     <div className="container mx-auto py-6 space-y-6">
@@ -478,7 +484,7 @@ export default function HODDashboard() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Average Rating</p>
-                <h2 className="text-3xl font-bold">{averageRating}/10</h2>
+                <h2 className="text-3xl font-bold">{averageRating}/5</h2>
               </div>
               <div className="p-2 bg-primary/10 rounded-full text-primary">
                 <Star className="h-5 w-5" />
@@ -493,13 +499,13 @@ export default function HODDashboard() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Section A</p>
-                <h2 className="text-3xl font-bold">{sectionACount}</h2>
+                <h2 className="text-3xl font-bold">{sectionAStudents}</h2>
               </div>
               <div className="p-2 bg-primary/10 rounded-full text-primary">
                 <BookOpen className="h-5 w-5" />
               </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-2">Section A responses</p>
+            <p className="text-xs text-muted-foreground mt-2">Section A students</p>
           </CardContent>
         </Card>
 
@@ -508,13 +514,13 @@ export default function HODDashboard() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Section B</p>
-                <h2 className="text-3xl font-bold">{sectionBCount}</h2>
+                <h2 className="text-3xl font-bold">{sectionBStudents}</h2>
               </div>
               <div className="p-2 bg-primary/10 rounded-full text-primary">
                 <BookOpen className="h-5 w-5" />
               </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-2">Section B responses</p>
+            <p className="text-xs text-muted-foreground mt-2">Section B students</p>
           </CardContent>
         </Card>
       </div>
@@ -535,17 +541,17 @@ export default function HODDashboard() {
             <Card>
               <CardHeader>
                 <CardTitle>Feedback Distribution</CardTitle>
-                <CardDescription>Responses by section</CardDescription>
+                <CardDescription>Students by section</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-2">
                   <div className="flex justify-between">
                     <span>Section A</span>
-                    <span>{sectionACount}</span>
+                    <span>{sectionAStudents}</span>
                   </div>
                   <div className="flex justify-between">
                     <span>Section B</span>
-                    <span>{sectionBCount}</span>
+                    <span>{sectionBStudents}</span>
                   </div>
                 </div>
               </CardContent>
