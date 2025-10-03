@@ -8,13 +8,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { LogOut, Eye, TrendingUp, Users, Star, BookOpen, Package, Upload, Download, CircleAlert as AlertCircle } from "lucide-react";
+import { LogOut, Eye, TrendingUp, Users, Star, BookOpen, Package, Upload, Download, CircleAlert as AlertCircle, ChevronDown, ChevronRight, Pencil, Trash2 } from "lucide-react";
 import { FiUserPlus } from "react-icons/fi";
 import { useAuth } from "@/context/AuthContext";
 import { apiService } from "@/services/api";
 import { toast } from "sonner";
 import Papa from 'papaparse';
 import { BundledFeedback as SubmissionBundle } from "@/types/feedback";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 
 // Backend-compatible interfaces based on models.py
 interface StudentDetails {
@@ -60,6 +61,8 @@ export default function HODDashboard() {
   const [feedbackData, setFeedbackData] = useState<SubmissionBundle[]>([]);
   const [legacyData, setLegacyData] = useState<LegacyFeedbackData[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [expandedBundles, setExpandedBundles] = useState<Record<string, boolean>>({});
+  const [expandedTeachersByBundle, setExpandedTeachersByBundle] = useState<Record<string, Record<string, boolean>>>({});
   
   // Student management state
   const [students, setStudents] = useState<StudentDetails[]>([]);
@@ -76,6 +79,11 @@ export default function HODDashboard() {
   const [showImportErrors, setShowImportErrors] = useState(false);
   const [importSuccess, setImportSuccess] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Student edit/delete state
+  const [editingStudent, setEditingStudent] = useState<StudentDetails | null>(null);
+  const [isStudentDialogOpen, setIsStudentDialogOpen] = useState(false);
+  const [studentEditForm, setStudentEditForm] = useState<Partial<StudentDetails>>({});
   
   // Teacher management state
   const [teachers, setTeachers] = useState<TeacherDetails[]>([]);
@@ -88,6 +96,11 @@ export default function HODDashboard() {
     phone: ''
   });
   const [newSubject, setNewSubject] = useState('');
+
+  // Teacher edit/delete state
+  const [editingTeacher, setEditingTeacher] = useState<TeacherDetails | null>(null);
+  const [isTeacherDialogOpen, setIsTeacherDialogOpen] = useState(false);
+  const [teacherEditForm, setTeacherEditForm] = useState<Partial<TeacherDetails>>({});
 
   useEffect(() => {
     // Check if user is logged in and is HOD
@@ -158,6 +171,21 @@ export default function HODDashboard() {
     toast.success("Logged out successfully");
   };
 
+  // Expand/collapse handlers for bundles/teachers
+  const toggleBundle = (bundleId: string) => {
+    setExpandedBundles(prev => ({ ...prev, [bundleId]: !prev[bundleId] }));
+  };
+
+  const toggleTeacher = (bundleId: string, teacherKey: string) => {
+    setExpandedTeachersByBundle(prev => ({
+      ...prev,
+      [bundleId]: {
+        ...(prev[bundleId] || {}),
+        [teacherKey]: !(prev[bundleId]?.[teacherKey])
+      }
+    }));
+  };
+
   const handleExportData = () => {
     toast.success("Data exported successfully");
   };
@@ -211,6 +239,59 @@ export default function HODDashboard() {
   const handleStudentInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
     setNewStudent(prev => ({ ...prev, [name]: value }));
+  };
+
+  // Student edit/delete handlers
+  const openStudentEdit = (student: StudentDetails) => {
+    setEditingStudent(student);
+    setStudentEditForm({ ...student });
+    setIsStudentDialogOpen(true);
+  };
+
+  const handleStudentEditInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setStudentEditForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const saveStudentEdit = async () => {
+    if (!editingStudent) return;
+    try {
+      const payload = {
+        reg_number: studentEditForm.reg_number,
+        name: studentEditForm.name,
+        section: studentEditForm.section,
+        dob: studentEditForm.dob,
+        email: studentEditForm.email || undefined,
+        phone: studentEditForm.phone || undefined,
+        year: studentEditForm.year || undefined,
+        branch: studentEditForm.branch || undefined
+      } as any;
+      const resp = await apiService.updateStudent(editingStudent.id, payload);
+      if (resp.success) {
+        toast.success("Student updated successfully");
+        setIsStudentDialogOpen(false);
+        setEditingStudent(null);
+        await loadDashboardData();
+      } else {
+        toast.error(resp.message || "Failed to update student");
+      }
+    } catch (e) {
+      toast.error("Failed to update student");
+    }
+  };
+
+  const deleteStudent = async (student: StudentDetails) => {
+    try {
+      const resp = await apiService.deleteStudent(student.id);
+      if (resp.success) {
+        toast.success("Student deleted");
+        await loadDashboardData();
+      } else {
+        toast.error(resp.message || "Failed to delete student");
+      }
+    } catch (e) {
+      toast.error("Failed to delete student");
+    }
   };
   
   const handleStudentSectionChange = (value: string) => {
@@ -416,6 +497,59 @@ export default function HODDashboard() {
     });
   };
 
+  // Teacher edit/delete handlers
+  const openTeacherEdit = (teacher: TeacherDetails) => {
+    setEditingTeacher(teacher);
+    setTeacherEditForm({ ...teacher });
+    setIsTeacherDialogOpen(true);
+  };
+
+  const handleTeacherEditInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setTeacherEditForm(prev => ({ ...prev, [name]: value }));
+  };
+
+  const saveTeacherEdit = async () => {
+    if (!editingTeacher) return;
+    try {
+      const payload = {
+        faculty_id: teacherEditForm.faculty_id,
+        name: teacherEditForm.name,
+        subjects: teacherEditForm.subjects || [],
+        sections: teacherEditForm.sections || [],
+        email: teacherEditForm.email || undefined,
+        phone: teacherEditForm.phone || undefined,
+        department: teacherEditForm.department || undefined,
+        designation: teacherEditForm.designation || undefined
+      } as any;
+      const resp = await apiService.updateFaculty(editingTeacher.id, payload);
+      if (resp.success) {
+        toast.success("Teacher updated successfully");
+        setIsTeacherDialogOpen(false);
+        setEditingTeacher(null);
+        await loadDashboardData();
+      } else {
+        toast.error(resp.message || "Failed to update teacher");
+      }
+    } catch (e) {
+      toast.error("Failed to update teacher");
+    }
+  };
+
+  const deleteTeacher = async (teacher: TeacherDetails) => {
+    try {
+      const resp = await apiService.deleteFaculty(teacher.id);
+      if (resp.success) {
+        toast.success("Teacher deleted");
+        await loadDashboardData();
+      } else {
+        toast.error(resp.message || "Failed to delete teacher");
+      }
+    } catch (e) {
+      toast.error("Failed to delete teacher");
+    }
+  };
+
   // Calculate statistics
   const totalResponses = feedbackData.length; // number of student submissions
   const totalTeacherRatings = feedbackData.flatMap(b => b.teacherFeedbacks).length;
@@ -526,12 +660,11 @@ export default function HODDashboard() {
       </div>
 
       <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-7 mb-8">
+        <TabsList className="grid grid-cols-6 mb-8">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="student-bundles">Student Bundles</TabsTrigger>
           <TabsTrigger value="subjects">Subjects</TabsTrigger>
           <TabsTrigger value="faculty">Faculty</TabsTrigger>
-          <TabsTrigger value="all-feedback">All Feedback</TabsTrigger>
           <TabsTrigger value="students">Students</TabsTrigger>
           <TabsTrigger value="teachers">Teachers</TabsTrigger>
         </TabsList>
@@ -579,84 +712,94 @@ export default function HODDashboard() {
           <Card>
             <CardHeader>
               <CardTitle>Student Bundles</CardTitle>
-              <CardDescription>All consolidated submissions</CardDescription>
+              <CardDescription>Expand a student to view faculty and per-question details</CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="border rounded-md">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Bundle ID</TableHead>
-                      <TableHead>Student</TableHead>
-                      <TableHead>Section</TableHead>
-                      <TableHead>Teachers Rated</TableHead>
-                      <TableHead>Submitted At</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {feedbackData.length > 0 ? (
-                      feedbackData.map(bundle => (
-                        <TableRow key={bundle.id}>
-                          <TableCell>{bundle.id}</TableCell>
-                          <TableCell>{bundle.studentName}</TableCell>
-                          <TableCell>{bundle.studentSection}</TableCell>
-                          <TableCell>{bundle.teacherFeedbacks.length}</TableCell>
-                          <TableCell>{bundle.submittedAt ? new Date(bundle.submittedAt).toLocaleString() : '-'}</TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={5} className="text-center py-4">No bundles found</TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
+              <div className="space-y-3">
+                {feedbackData.length === 0 && (
+                  <div className="text-center text-muted-foreground py-6">No bundles found</div>
+                )}
+                {feedbackData.map((bundle) => {
+                  const isOpen = !!expandedBundles[bundle.id];
+                  return (
+                    <div key={bundle.id} className="border rounded-lg">
+                      <div className="flex items-center justify-between px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          <button className="p-1" onClick={() => toggleBundle(bundle.id)} aria-label="Toggle bundle">
+                            {isOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                          </button>
+                          <div>
+                            <div className="font-medium">{bundle.studentName}</div>
+                            <div className="text-xs text-muted-foreground">Section {bundle.studentSection} • {bundle.teacherFeedbacks.length} teachers</div>
+                          </div>
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          {bundle.submittedAt ? new Date(bundle.submittedAt).toLocaleString() : '-'}
+                        </div>
+                      </div>
+                      {isOpen && (
+                        <div className="border-t">
+                          {/* Faculty list */}
+                          {bundle.teacherFeedbacks.map((tf, idx) => {
+                            const teacherKey = `${tf.teacherId}-${idx}`;
+                            const tOpen = !!(expandedTeachersByBundle[bundle.id]?.[teacherKey]);
+                            return (
+                              <div key={teacherKey} className="px-6 py-3 border-t">
+                                <div className="flex items-start justify-between">
+                                  <div className="flex items-center gap-2">
+                                    <button className="p-1" onClick={() => toggleTeacher(bundle.id, teacherKey)} aria-label="Toggle teacher">
+                                      {tOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+                                    </button>
+                                    <div>
+                                      <div className="font-medium">{tf.teacherName}</div>
+                                      <div className="text-xs text-muted-foreground">{tf.subject} • Overall {tf.overallRating}/10</div>
+                                    </div>
+                                  </div>
+                                </div>
+                                {tOpen && (
+                                  <div className="mt-3 ml-6">
+                                    {/* Per-question ratings */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                      {tf.questionRatings.map((qr, qidx) => (
+                                        <div key={`${qr.questionId}-${qidx}`} className="p-3 bg-muted/30 rounded border">
+                                          <div className="text-xs text-muted-foreground">{qr.question}</div>
+                                          <div className="text-sm font-medium">Rating: {qr.rating}/10</div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                    {/* Detailed feedback and suggestions */}
+                                    {(tf.detailedFeedback || tf.suggestions) && (
+                                      <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                                        {tf.detailedFeedback && (
+                                          <div className="p-3 bg-background border rounded">
+                                            <div className="text-xs text-muted-foreground mb-1">Detailed Feedback</div>
+                                            <div className="text-sm">{tf.detailedFeedback}</div>
+                                          </div>
+                                        )}
+                                        {tf.suggestions && (
+                                          <div className="p-3 bg-background border rounded">
+                                            <div className="text-xs text-muted-foreground mb-1">Suggestions / Improvements</div>
+                                            <div className="text-sm">{tf.suggestions}</div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </CardContent>
           </Card>
         </TabsContent>
 
-        {/* All Feedback Tab */}
-        <TabsContent value="all-feedback">
-          <Card>
-            <CardHeader>
-              <CardTitle>All Feedback</CardTitle>
-              <CardDescription>Flattened teacher feedback from all bundles</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="border rounded-md">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Teacher</TableHead>
-                      <TableHead>Subject</TableHead>
-                      <TableHead>Section</TableHead>
-                      <TableHead>Overall Rating</TableHead>
-                      <TableHead>Submitted At</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {feedbackData.flatMap(b => b.teacherFeedbacks.map(tf => ({ tf, b }))).length > 0 ? (
-                      feedbackData.flatMap(b => b.teacherFeedbacks.map(tf => ({ tf, b }))).map(({ tf, b }, idx) => (
-                        <TableRow key={`${b.id}_${idx}`}>
-                          <TableCell>{tf.teacherName}</TableCell>
-                          <TableCell>{tf.subject}</TableCell>
-                          <TableCell>{b.studentSection}</TableCell>
-                          <TableCell>{tf.overallRating}</TableCell>
-                          <TableCell>{b.submittedAt ? new Date(b.submittedAt).toLocaleString() : '-'}</TableCell>
-                        </TableRow>
-                      ))
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={5} className="text-center py-4">No feedback found</TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+        {/* Removed All Feedback Tab as requested */}
 
         {/* Faculty Tab - simple aggregation from bundles */}
         <TabsContent value="faculty">
@@ -904,6 +1047,7 @@ export default function HODDashboard() {
                         <TableHead>Name</TableHead>
                         <TableHead>Section</TableHead>
                         <TableHead>DOB</TableHead>
+                        <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -914,6 +1058,16 @@ export default function HODDashboard() {
                             <TableCell>{student.name}</TableCell>
                             <TableCell>Section {student.section}</TableCell>
                             <TableCell>{student.dob}</TableCell>
+                            <TableCell>
+                              <div className="flex gap-2">
+                                <Button variant="outline" size="sm" onClick={() => openStudentEdit(student)}>
+                                  <Pencil className="h-4 w-4 mr-1" /> Edit
+                                </Button>
+                                <Button variant="destructive" size="sm" onClick={() => deleteStudent(student)}>
+                                  <Trash2 className="h-4 w-4 mr-1" /> Remove
+                                </Button>
+                              </div>
+                            </TableCell>
                           </TableRow>
                         ))
                       ) : (
@@ -1059,6 +1213,7 @@ export default function HODDashboard() {
                         <TableHead>Name</TableHead>
                         <TableHead>Subjects</TableHead>
                         <TableHead>Sections</TableHead>
+                        <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1085,11 +1240,21 @@ export default function HODDashboard() {
                                 ))}
                               </div>
                             </TableCell>
+                            <TableCell>
+                              <div className="flex gap-2">
+                                <Button variant="outline" size="sm" onClick={() => openTeacherEdit(teacher)}>
+                                  <Pencil className="h-4 w-4 mr-1" /> Edit
+                                </Button>
+                                <Button variant="destructive" size="sm" onClick={() => deleteTeacher(teacher)}>
+                                  <Trash2 className="h-4 w-4 mr-1" /> Remove
+                                </Button>
+                              </div>
+                            </TableCell>
                           </TableRow>
                         ))
                       ) : (
                         <TableRow>
-                          <TableCell colSpan={4} className="text-center py-4">
+                          <TableCell colSpan={5} className="text-center py-4">
                             No teachers found
                           </TableCell>
                         </TableRow>
@@ -1102,6 +1267,84 @@ export default function HODDashboard() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Student Edit Dialog */}
+      <Dialog open={isStudentDialogOpen} onOpenChange={setIsStudentDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Student</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 mt-2">
+            <div className="space-y-2">
+              <Label htmlFor="edit_reg_number">Registration Number</Label>
+              <Input id="edit_reg_number" name="reg_number" value={studentEditForm.reg_number || ''} onChange={handleStudentEditInputChange} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit_name">Full Name</Label>
+              <Input id="edit_name" name="name" value={studentEditForm.name || ''} onChange={handleStudentEditInputChange} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit_section">Section</Label>
+              <Input id="edit_section" name="section" value={(studentEditForm.section as any) || ''} onChange={handleStudentEditInputChange} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit_dob">Date of Birth</Label>
+              <Input id="edit_dob" name="dob" type="date" value={studentEditForm.dob || ''} onChange={handleStudentEditInputChange} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit_email">Email</Label>
+              <Input id="edit_email" name="email" value={studentEditForm.email || ''} onChange={handleStudentEditInputChange} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit_phone">Phone</Label>
+              <Input id="edit_phone" name="phone" value={studentEditForm.phone || ''} onChange={handleStudentEditInputChange} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsStudentDialogOpen(false)}>Cancel</Button>
+            <Button onClick={saveStudentEdit}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Teacher Edit Dialog */}
+      <Dialog open={isTeacherDialogOpen} onOpenChange={setIsTeacherDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Teacher</DialogTitle>
+          </DialogHeader>
+          <div className="grid grid-cols-2 gap-3 mt-2">
+            <div className="space-y-2">
+              <Label htmlFor="edit_faculty_id">Teacher ID</Label>
+              <Input id="edit_faculty_id" name="faculty_id" value={teacherEditForm.faculty_id || ''} onChange={handleTeacherEditInputChange} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit_t_name">Full Name</Label>
+              <Input id="edit_t_name" name="name" value={teacherEditForm.name || ''} onChange={handleTeacherEditInputChange} />
+            </div>
+            <div className="space-y-2 col-span-2">
+              <Label htmlFor="edit_subjects">Subjects (comma separated)</Label>
+              <Input id="edit_subjects" name="subjects" value={(teacherEditForm.subjects || []).join(', ')} onChange={(e) => setTeacherEditForm(prev => ({ ...prev, subjects: e.target.value.split(',').map(s => s.trim()).filter(Boolean) }))} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit_sections">Sections (comma separated A,B)</Label>
+              <Input id="edit_sections" name="sections" value={(teacherEditForm.sections || []).join(', ')} onChange={(e) => setTeacherEditForm(prev => ({ ...prev, sections: e.target.value.split(',').map(s => s.trim().toUpperCase() as any).filter(Boolean) }))} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit_t_email">Email</Label>
+              <Input id="edit_t_email" name="email" value={teacherEditForm.email || ''} onChange={handleTeacherEditInputChange} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="edit_t_phone">Phone</Label>
+              <Input id="edit_t_phone" name="phone" value={teacherEditForm.phone || ''} onChange={handleTeacherEditInputChange} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsTeacherDialogOpen(false)}>Cancel</Button>
+            <Button onClick={saveTeacherEdit}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
