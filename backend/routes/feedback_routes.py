@@ -554,12 +554,12 @@ async def get_feedback_bundles(admin: Any = Depends(get_current_admin)):
                 # Convert question ratings to the expected format
                 question_ratings = []
                 for q_rating in faculty_feedback.get('question_ratings', []):
-                question_ratings.append({
-                    "questionId": q_rating.get('question_id', ''),
-                    "question": q_rating.get('question', ''),
-                    "rating": q_rating.get('rating', 0),
-                    "weight": q_rating.get('weight', 0)
-                })
+                    question_ratings.append({
+                        "questionId": q_rating.get('question_id', ''),
+                        "question": q_rating.get('question', ''),
+                        "rating": q_rating.get('rating', 0),
+                        "weight": q_rating.get('weight', 0)
+                    })
                 
                 teacher_feedbacks.append({
                     "teacherId": faculty_feedback.get('faculty_id', ''),
