@@ -296,25 +296,31 @@ class AdvancedIndexManager:
     async def create_performance_indexes(self):
         """Create all performance-optimized indexes"""
         try:
-            # Students collection indexes
             await self._create_student_indexes()
-            
-            # Faculty collection indexes
-            await self._create_faculty_indexes()
-            
-            # Feedback submissions indexes
-            await self._create_feedback_indexes()
-            
-            # Admins collection indexes
-            await self._create_admin_indexes()
-            
-            # Materialized view indexes
-            await self._create_materialized_view_indexes()
-            
-            logger.info("All performance indexes created successfully")
         except Exception as e:
-            logger.error(f"Error creating performance indexes: {e}")
-            raise
+            logger.error(f"Error creating student indexes: {e}")
+        
+        try:
+            await self._create_faculty_indexes()
+        except Exception as e:
+            logger.error(f"Error creating faculty indexes: {e}")
+        
+        try:
+            await self._create_feedback_indexes()
+        except Exception as e:
+            logger.error(f"Error creating feedback indexes: {e}")
+        
+        try:
+            await self._create_admin_indexes()
+        except Exception as e:
+            logger.error(f"Error creating admin indexes: {e}")
+        
+        try:
+            await self._create_materialized_view_indexes()
+        except Exception as e:
+            logger.error(f"Error creating materialized view indexes: {e}")
+        
+        logger.info("Performance indexes creation completed (with possible warnings)")
     
     async def _create_student_indexes(self):
         """Create optimized indexes for students collection"""
@@ -512,7 +518,8 @@ class DatabaseOptimizer:
             logger.info("Database optimization completed successfully")
         except Exception as e:
             logger.error(f"Error during database optimization: {e}")
-            raise
+            logger.warning("Continuing without optimal indexes and materialized views")
+            # Don't raise - allow application to continue
     
     async def _setup_materialized_view_refresh(self):
         """Set up periodic refresh for materialized views"""

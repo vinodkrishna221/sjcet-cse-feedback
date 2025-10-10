@@ -69,6 +69,8 @@ async def create_indexes():
         logger.info("Database indexes created successfully")
     except Exception as e:
         logger.error(f"Error creating indexes: {e}")
+        logger.warning("Continuing without some indexes")
+        # Don't raise - allow application to continue
 
 # Database utility functions
 class DatabaseOperations:
