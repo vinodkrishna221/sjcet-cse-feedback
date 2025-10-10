@@ -6,10 +6,10 @@ from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 import logging
 
-from ..auth import get_current_student, get_current_admin
-from ..database import DatabaseOperations
-from ..models import APIResponse
-from ..middleware import rate_limit_middleware
+from auth import get_current_student, get_current_admin
+from database import DatabaseOperations
+from models import APIResponse
+from middleware import rate_limit_middleware
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
