@@ -10,7 +10,7 @@ class PaginationParams(BaseModel):
     page: int = Field(1, ge=1, description="Page number (1-based)")
     limit: int = Field(20, ge=1, le=100, description="Number of items per page")
     sort_by: Optional[str] = Field(None, description="Field to sort by")
-    sort_order: str = Field("asc", regex="^(asc|desc)$", description="Sort order")
+    sort_order: str = Field("asc", pattern="^(asc|desc)$", description="Sort order")
     cursor: Optional[str] = Field(None, description="Cursor for cursor-based pagination")
 
 class PaginatedResponse(BaseModel):
@@ -83,7 +83,7 @@ def get_pagination_params(
     page: int = Query(1, ge=1, description="Page number"),
     limit: int = Query(20, ge=1, le=100, description="Items per page"),
     sort_by: Optional[str] = Query(None, description="Sort field"),
-    sort_order: str = Query("asc", regex="^(asc|desc)$", description="Sort order")
+    sort_order: str = Query("asc", pattern="^(asc|desc)$", description="Sort order")
 ) -> PaginationParams:
     """Dependency for pagination parameters"""
     return PaginationParams(

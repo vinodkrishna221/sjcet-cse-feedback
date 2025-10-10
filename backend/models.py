@@ -371,7 +371,7 @@ class ReportGenerateRequest(BaseModel):
     department: str
     batch_year: str
     section: Section
-    format: str = Field(..., regex="^(csv|pdf|excel)$")
+    format: str = Field(..., pattern="^(csv|pdf|excel)$")
 
 class ReportHistoryResponse(BaseModel):
     id: str
