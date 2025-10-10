@@ -19,7 +19,7 @@ from monitoring import performance_monitor, system_monitor, initialize_monitorin
 from database_optimizer import initialize_database_optimization
 
 # Import database connection
-from database import connect_to_mongo, close_mongo_connection, db
+from database import connect_to_mongo, close_mongo_connection, get_database
 
 # Import authentication helpers
 from auth import AuthHelpers
@@ -235,13 +235,13 @@ async def startup_db_client():
         
         # Initialize performance optimization services
         await cache_service.connect()
-        await initialize_query_optimization(db)
-        await initialize_database_optimization(db)
-        initialize_monitoring(db, cache_service)
+        await initialize_query_optimization(get_database())
+        await initialize_database_optimization(get_database())
+        initialize_monitoring(get_database(), cache_service)
         
         # Store services in app state for global access
         app.state.cache_service = cache_service
-        app.state.db_cache_service = DatabaseCacheService(db, cache_service)
+        app.state.db_cache_service = DatabaseCacheService(get_database(), cache_service)
         app.state.optimized_queries = optimized_queries
         
         logger.info("Application startup completed successfully")
