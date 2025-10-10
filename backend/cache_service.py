@@ -3,6 +3,7 @@ Redis caching service for performance optimization
 """
 import json
 import pickle
+import os
 from typing import Any, Optional, Union, Dict, List
 from datetime import datetime, timedelta
 import asyncio
@@ -398,4 +399,4 @@ class DatabaseCacheService:
 
 
 # Global cache service instance
-cache_service = CacheService()
+cache_service = CacheService(os.environ.get('REDIS_URL', 'redis://localhost:6379'))
