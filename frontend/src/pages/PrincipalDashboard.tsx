@@ -7,26 +7,200 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { LogOut, Eye, TrendingUp, Users, Star, BookOpen, Package } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { BundledFeedback, LegacyFeedbackData, FEEDBACK_QUESTIONS } from "@/types/feedback";
+import { BundledFeedback, LegacyFeedbackData, FEEDBACK_QUESTIONS, Department, BatchYear, HODCreate } from "@/types/feedback";
+import { apiService } from "@/services/api";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Pencil, Trash2, Plus, Building, GraduationCap, UserPlus } from "lucide-react";
+import ReportGenerator from "@/components/ReportGenerator";
 
 const PrincipalDashboard = () => {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [feedbackData, setFeedbackData] = useState<LegacyFeedbackData[]>([]);
   const [bundledFeedback, setBundledFeedback] = useState<BundledFeedback[]>([]);
+  
+  // Management state
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [batchYears, setBatchYears] = useState<BatchYear[]>([]);
+  const [hods, setHODs] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // Form states
+  const [newDepartment, setNewDepartment] = useState({ name: '', code: '' });
+  const [newBatchYear, setNewBatchYear] = useState({ year_range: '', department: '' });
+  const [newHOD, setNewHOD] = useState<HODCreate>({ username: '', password: '', name: '', department: '' });
+  const [newSections, setNewSections] = useState<string[]>([]);
+  
+  // Dialog states
+  const [isDepartmentDialogOpen, setIsDepartmentDialogOpen] = useState(false);
+  const [isBatchYearDialogOpen, setIsBatchYearDialogOpen] = useState(false);
+  const [isHODDialogOpen, setIsHODDialogOpen] = useState(false);
+  const [isSectionsDialogOpen, setIsSectionsDialogOpen] = useState(false);
+  const [selectedBatchYear, setSelectedBatchYear] = useState<string>('');
 
   useEffect(() => {
+    // Check if user is logged in and is principal
+    if (!user || user.role !== 'principal') {
+      navigate('/admin-login');
+      return;
+    }
+
     // Load both legacy and bundled feedback data
     const legacyData = JSON.parse(localStorage.getItem('feedbackData') || '[]');
     const bundledData = JSON.parse(localStorage.getItem('bundledFeedbackData') || '[]');
     setFeedbackData(legacyData);
     setBundledFeedback(bundledData);
-  }, []);
+    
+    // Load management data
+    loadManagementData();
+  }, [user, navigate]);
+
+  const loadManagementData = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Load departments
+      const departmentsResponse = await apiService.getDepartments();
+      if (departmentsResponse.success && departmentsResponse.data?.departments) {
+        setDepartments(departmentsResponse.data.departments);
+      }
+      
+      // Load batch years
+      const batchYearsResponse = await apiService.getBatchYears();
+      if (batchYearsResponse.success && batchYearsResponse.data?.batch_years) {
+        setBatchYears(batchYearsResponse.data.batch_years);
+      }
+      
+      // Load HODs
+      const hodsResponse = await apiService.getHODs();
+      if (hodsResponse.success && hodsResponse.data?.hods) {
+        setHODs(hodsResponse.data.hods);
+      }
+    } catch (error) {
+      console.error('Error loading management data:', error);
+      toast.error('Failed to load management data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleLogout = () => {
     logout();
     navigate('/');
     toast.info('Logged out successfully');
+  };
+
+  // Department management handlers
+  const handleCreateDepartment = async () => {
+    if (!newDepartment.name || !newDepartment.code) {
+      toast.error('Please fill all required fields');
+      return;
+    }
+    
+    try {
+      const response = await apiService.createDepartment(newDepartment);
+      if (response.success) {
+        toast.success('Department created successfully');
+        setNewDepartment({ name: '', code: '' });
+        setIsDepartmentDialogOpen(false);
+        loadManagementData();
+      } else {
+        toast.error(response.message || 'Failed to create department');
+      }
+    } catch (error) {
+      console.error('Error creating department:', error);
+      toast.error('Failed to create department');
+    }
+  };
+
+  // Batch year management handlers
+  const handleCreateBatchYear = async () => {
+    if (!newBatchYear.year_range || !newBatchYear.department) {
+      toast.error('Please fill all required fields');
+      return;
+    }
+    
+    try {
+      const response = await apiService.createBatchYear(newBatchYear);
+      if (response.success) {
+        toast.success('Batch year created successfully');
+        setNewBatchYear({ year_range: '', department: '' });
+        setIsBatchYearDialogOpen(false);
+        loadManagementData();
+      } else {
+        toast.error(response.message || 'Failed to create batch year');
+      }
+    } catch (error) {
+      console.error('Error creating batch year:', error);
+      toast.error('Failed to create batch year');
+    }
+  };
+
+  // HOD management handlers
+  const handleCreateHOD = async () => {
+    if (!newHOD.username || !newHOD.password || !newHOD.name || !newHOD.department) {
+      toast.error('Please fill all required fields');
+      return;
+    }
+    
+    try {
+      const response = await apiService.createHOD(newHOD);
+      if (response.success) {
+        toast.success('HOD created successfully');
+        setNewHOD({ username: '', password: '', name: '', department: '' });
+        setIsHODDialogOpen(false);
+        loadManagementData();
+      } else {
+        toast.error(response.message || 'Failed to create HOD');
+      }
+    } catch (error) {
+      console.error('Error creating HOD:', error);
+      toast.error('Failed to create HOD');
+    }
+  };
+
+  // Section management handlers
+  const handleAddSections = async () => {
+    if (!selectedBatchYear || newSections.length === 0) {
+      toast.error('Please select batch year and add sections');
+      return;
+    }
+    
+    try {
+      const response = await apiService.addSectionsToBatchYear(selectedBatchYear, newSections);
+      if (response.success) {
+        toast.success('Sections added successfully');
+        setNewSections([]);
+        setSelectedBatchYear('');
+        setIsSectionsDialogOpen(false);
+        loadManagementData();
+      } else {
+        toast.error(response.message || 'Failed to add sections');
+      }
+    } catch (error) {
+      console.error('Error adding sections:', error);
+      toast.error('Failed to add sections');
+    }
+  };
+
+  const addSection = () => {
+    const section = prompt('Enter section letter (A, B, C, D):');
+    if (section && ['A', 'B', 'C', 'D'].includes(section.toUpperCase())) {
+      const upperSection = section.toUpperCase();
+      if (!newSections.includes(upperSection)) {
+        setNewSections([...newSections, upperSection]);
+      } else {
+        toast.error('Section already added');
+      }
+    }
+  };
+
+  const removeSection = (section: string) => {
+    setNewSections(newSections.filter(s => s !== section));
   };
 
   // Calculate comprehensive statistics combining both data sources
@@ -171,12 +345,16 @@ const PrincipalDashboard = () => {
 
         {/* Detailed Analytics */}
         <Tabs defaultValue="overview" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5">
+          <TabsList className="grid w-full grid-cols-9">
             <TabsTrigger value="overview">Department Overview</TabsTrigger>
             <TabsTrigger value="students">Student Submissions</TabsTrigger>
             <TabsTrigger value="subjects">Subject Performance</TabsTrigger>
             <TabsTrigger value="faculty">Faculty Analysis</TabsTrigger>
             <TabsTrigger value="trends">Performance Trends</TabsTrigger>
+            <TabsTrigger value="reports">Reports</TabsTrigger>
+            <TabsTrigger value="hods">HOD Management</TabsTrigger>
+            <TabsTrigger value="departments">Departments</TabsTrigger>
+            <TabsTrigger value="batches">Batch Years</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview">
@@ -441,45 +619,6 @@ const PrincipalDashboard = () => {
             </Card>
           </TabsContent>
 
-          <TabsContent value="faculty">
-            <Card className="card-academic">
-              <CardHeader>
-                <CardTitle>Faculty Performance Summary</CardTitle>
-                <CardDescription>Teaching effectiveness based on student feedback</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  {Object.entries(facultyPerformance)
-                    .sort(([,a], [,b]) => (b.total / b.count) - (a.total / a.count))
-                    .map(([faculty, stats]) => {
-                      const avgRating = (stats.total / stats.count).toFixed(1);
-                      const subjectCount = stats.subjects.size;
-                      
-                      return (
-                        <div key={faculty} className="flex items-center justify-between p-4 border border-border rounded-lg">
-                          <div>
-                            <h4 className="font-medium">{faculty}</h4>
-                            <p className="text-sm text-muted-foreground">
-                              {stats.count} responses • {subjectCount} subject{subjectCount > 1 ? 's' : ''}
-                            </p>
-                          </div>
-                          <div className="flex items-center space-x-3">
-                            <Badge variant={Number(avgRating) >= 7 ? 'default' : 'secondary'}>
-                              {avgRating}/10
-                            </Badge>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  {Object.keys(facultyPerformance).length === 0 && (
-                    <p className="text-muted-foreground text-center py-8">
-                      No faculty data available yet
-                    </p>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
 
           <TabsContent value="trends">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -534,6 +673,419 @@ const PrincipalDashboard = () => {
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium">Evaluation Criteria</span>
                     <Badge variant="outline">{FEEDBACK_QUESTIONS.length} questions</Badge>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Reports Tab */}
+          <TabsContent value="reports">
+            <ReportGenerator 
+              userRole="principal" 
+              onReportGenerated={loadManagementData}
+            />
+          </TabsContent>
+
+          {/* HOD Management Tab */}
+          <TabsContent value="hods">
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <UserPlus className="h-5 w-5" />
+                    HOD Management
+                  </CardTitle>
+                  <CardDescription>Create and manage Head of Department accounts</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold">HOD Accounts</h3>
+                    <Dialog open={isHODDialogOpen} onOpenChange={setIsHODDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add HOD
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Create New HOD Account</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <Label htmlFor="hod-username">Username</Label>
+                              <Input
+                                id="hod-username"
+                                value={newHOD.username}
+                                onChange={(e) => setNewHOD(prev => ({ ...prev, username: e.target.value }))}
+                                placeholder="Enter username"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="hod-password">Password</Label>
+                              <Input
+                                id="hod-password"
+                                type="password"
+                                value={newHOD.password}
+                                onChange={(e) => setNewHOD(prev => ({ ...prev, password: e.target.value }))}
+                                placeholder="Enter password"
+                              />
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <Label htmlFor="hod-name">Full Name</Label>
+                              <Input
+                                id="hod-name"
+                                value={newHOD.name}
+                                onChange={(e) => setNewHOD(prev => ({ ...prev, name: e.target.value }))}
+                                placeholder="Enter full name"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="hod-department">Department</Label>
+                              <Select value={newHOD.department} onValueChange={(value) => setNewHOD(prev => ({ ...prev, department: value }))}>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select department" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {departments.map((dept) => (
+                                    <SelectItem key={dept.id} value={dept.name}>
+                                      {dept.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setIsHODDialogOpen(false)}>
+                            Cancel
+                          </Button>
+                          <Button onClick={handleCreateHOD}>
+                            Create HOD
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                  
+                  <div className="border rounded-md">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Username</TableHead>
+                          <TableHead>Department</TableHead>
+                          <TableHead>Status</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {hods.map((hod) => (
+                          <TableRow key={hod.id}>
+                            <TableCell>{hod.name}</TableCell>
+                            <TableCell>{hod.username}</TableCell>
+                            <TableCell>{hod.department}</TableCell>
+                            <TableCell>
+                              <Badge variant={hod.is_active ? 'default' : 'secondary'}>
+                                {hod.is_active ? 'Active' : 'Inactive'}
+                              </Badge>
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex gap-2">
+                                <Button variant="outline" size="sm">
+                                  <Pencil className="h-4 w-4 mr-1" />
+                                  Edit
+                                </Button>
+                                <Button variant="destructive" size="sm">
+                                  <Trash2 className="h-4 w-4 mr-1" />
+                                  Deactivate
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Department Management Tab */}
+          <TabsContent value="departments">
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Building className="h-5 w-5" />
+                    Department Management
+                  </CardTitle>
+                  <CardDescription>Create and manage academic departments</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex justify-between items-center mb-4">
+                    <h3 className="text-lg font-semibold">Departments</h3>
+                    <Dialog open={isDepartmentDialogOpen} onOpenChange={setIsDepartmentDialogOpen}>
+                      <DialogTrigger asChild>
+                        <Button>
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add Department
+                        </Button>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Create New Department</DialogTitle>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div>
+                            <Label htmlFor="dept-name">Department Name</Label>
+                            <Input
+                              id="dept-name"
+                              value={newDepartment.name}
+                              onChange={(e) => setNewDepartment(prev => ({ ...prev, name: e.target.value }))}
+                              placeholder="e.g., Computer Science Engineering"
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="dept-code">Department Code</Label>
+                            <Input
+                              id="dept-code"
+                              value={newDepartment.code}
+                              onChange={(e) => setNewDepartment(prev => ({ ...prev, code: e.target.value }))}
+                              placeholder="e.g., CSE"
+                            />
+                          </div>
+                        </div>
+                        <DialogFooter>
+                          <Button variant="outline" onClick={() => setIsDepartmentDialogOpen(false)}>
+                            Cancel
+                          </Button>
+                          <Button onClick={handleCreateDepartment}>
+                            Create Department
+                          </Button>
+                        </DialogFooter>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
+                  
+                  <div className="border rounded-md">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Name</TableHead>
+                          <TableHead>Code</TableHead>
+                          <TableHead>HOD</TableHead>
+                          <TableHead>Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {departments.map((dept) => (
+                          <TableRow key={dept.id}>
+                            <TableCell>{dept.name}</TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{dept.code}</Badge>
+                            </TableCell>
+                            <TableCell>{dept.hod_name || 'Not Assigned'}</TableCell>
+                            <TableCell>
+                              <div className="flex gap-2">
+                                <Button variant="outline" size="sm">
+                                  <Pencil className="h-4 w-4 mr-1" />
+                                  Edit
+                                </Button>
+                                <Button variant="destructive" size="sm">
+                                  <Trash2 className="h-4 w-4 mr-1" />
+                                  Delete
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Batch Year Management Tab */}
+          <TabsContent value="batches">
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <GraduationCap className="h-5 w-5" />
+                    Batch Year Management
+                  </CardTitle>
+                  <CardDescription>Create batch years and manage sections</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Create Batch Year */}
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4">Create Batch Year</h3>
+                      <Dialog open={isBatchYearDialogOpen} onOpenChange={setIsBatchYearDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button className="w-full">
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add Batch Year
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Create New Batch Year</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <div>
+                              <Label htmlFor="batch-year">Year Range</Label>
+                              <Input
+                                id="batch-year"
+                                value={newBatchYear.year_range}
+                                onChange={(e) => setNewBatchYear(prev => ({ ...prev, year_range: e.target.value }))}
+                                placeholder="e.g., 2024-2028"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="batch-dept">Department</Label>
+                              <Select value={newBatchYear.department} onValueChange={(value) => setNewBatchYear(prev => ({ ...prev, department: value }))}>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select department" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {departments.map((dept) => (
+                                    <SelectItem key={dept.id} value={dept.name}>
+                                      {dept.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                          </div>
+                          <DialogFooter>
+                            <Button variant="outline" onClick={() => setIsBatchYearDialogOpen(false)}>
+                              Cancel
+                            </Button>
+                            <Button onClick={handleCreateBatchYear}>
+                              Create Batch Year
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+
+                    {/* Add Sections */}
+                    <div>
+                      <h3 className="text-lg font-semibold mb-4">Add Sections to Batch Year</h3>
+                      <Dialog open={isSectionsDialogOpen} onOpenChange={setIsSectionsDialogOpen}>
+                        <DialogTrigger asChild>
+                          <Button className="w-full">
+                            <Plus className="h-4 w-4 mr-2" />
+                            Manage Sections
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Add Sections to Batch Year</DialogTitle>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <div>
+                              <Label htmlFor="select-batch">Select Batch Year</Label>
+                              <Select value={selectedBatchYear} onValueChange={setSelectedBatchYear}>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select batch year" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {batchYears.map((batch) => (
+                                    <SelectItem key={batch.id} value={batch.id}>
+                                      {batch.year_range} {batch.department}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <div>
+                              <Label>Sections</Label>
+                              <div className="flex flex-wrap gap-2 mb-2">
+                                {newSections.map((section) => (
+                                  <Badge key={section} variant="secondary" className="px-2 py-1">
+                                    Section {section}
+                                    <button 
+                                      type="button" 
+                                      className="ml-2 text-muted-foreground hover:text-foreground"
+                                      onClick={() => removeSection(section)}
+                                    >
+                                      ×
+                                    </button>
+                                  </Badge>
+                                ))}
+                              </div>
+                              <Button variant="outline" onClick={addSection} className="w-full">
+                                Add Section
+                              </Button>
+                            </div>
+                          </div>
+                          <DialogFooter>
+                            <Button variant="outline" onClick={() => setIsSectionsDialogOpen(false)}>
+                              Cancel
+                            </Button>
+                            <Button onClick={handleAddSections}>
+                              Add Sections
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-6">
+                    <h3 className="text-lg font-semibold mb-4">Batch Years Overview</h3>
+                    <div className="border rounded-md">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Year Range</TableHead>
+                            <TableHead>Department</TableHead>
+                            <TableHead>Sections</TableHead>
+                            <TableHead>Actions</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {batchYears.map((batch) => (
+                            <TableRow key={batch.id}>
+                              <TableCell>{batch.year_range}</TableCell>
+                              <TableCell>{batch.department}</TableCell>
+                              <TableCell>
+                                <div className="flex gap-1">
+                                  {batch.sections?.map((section) => (
+                                    <Badge key={section} variant="outline">
+                                      {section}
+                                    </Badge>
+                                  ))}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex gap-2">
+                                  <Button variant="outline" size="sm">
+                                    <Pencil className="h-4 w-4 mr-1" />
+                                    Edit
+                                  </Button>
+                                  <Button variant="destructive" size="sm">
+                                    <Trash2 className="h-4 w-4 mr-1" />
+                                    Delete
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

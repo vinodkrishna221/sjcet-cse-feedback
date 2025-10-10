@@ -139,10 +139,13 @@ class ApiService {
   }
 
   // Get all students (for admin)
-  async getAllStudents(section?: string) {
-    const url = section 
-      ? `${API_BASE_URL}/students?section=${section}`
-      : `${API_BASE_URL}/students`;
+  async getAllStudents(section?: string, department?: string, batch_year?: string) {
+    const params = new URLSearchParams();
+    if (section) params.append('section', section);
+    if (department) params.append('department', department);
+    if (batch_year) params.append('batch_year', batch_year);
+    
+    const url = `${API_BASE_URL}/students${params.toString() ? `?${params.toString()}` : ''}`;
       
     const response = await fetch(url, {
       headers: this.getAuthHeaders()
@@ -152,10 +155,13 @@ class ApiService {
   }
 
   // Get all faculty (for admin)
-  async getAllFaculty(section?: string) {
-    const url = section 
-      ? `${API_BASE_URL}/faculty?section=${section}`
-      : `${API_BASE_URL}/faculty`;
+  async getAllFaculty(section?: string, subject?: string, department?: string) {
+    const params = new URLSearchParams();
+    if (section) params.append('section', section);
+    if (subject) params.append('subject', subject);
+    if (department) params.append('department', department);
+    
+    const url = `${API_BASE_URL}/faculty${params.toString() ? `?${params.toString()}` : ''}`;
       
     const response = await fetch(url, {
       headers: this.getAuthHeaders()
@@ -307,6 +313,200 @@ class ApiService {
     });
 
     return this.handleResponse<ApiResponse>(response);
+  }
+
+  // Principal HOD Management
+  async createHOD(hodData: {
+    username: string;
+    password: string;
+    name: string;
+    email?: string;
+    phone?: string;
+    department: string;
+  }) {
+    const response = await fetch(`${API_BASE_URL}/admin/hods`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(hodData)
+    });
+
+    return this.handleResponse<ApiResponse>(response);
+  }
+
+  async getHODs(department?: string) {
+    const url = department 
+      ? `${API_BASE_URL}/admin/hods?department=${encodeURIComponent(department)}`
+      : `${API_BASE_URL}/admin/hods`;
+    
+    const response = await fetch(url, {
+      headers: this.getAuthHeaders()
+    });
+
+    return this.handleResponse<ApiResponse>(response);
+  }
+
+  async updateHOD(hodId: string, hodData: {
+    username: string;
+    password?: string;
+    name: string;
+    email?: string;
+    phone?: string;
+    department: string;
+  }) {
+    const response = await fetch(`${API_BASE_URL}/admin/hods/${hodId}`, {
+      method: 'PUT',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(hodData)
+    });
+
+    return this.handleResponse<ApiResponse>(response);
+  }
+
+  async deleteHOD(hodId: string) {
+    const response = await fetch(`${API_BASE_URL}/admin/hods/${hodId}`, {
+      method: 'DELETE',
+      headers: this.getAuthHeaders()
+    });
+
+    return this.handleResponse<ApiResponse>(response);
+  }
+
+  // Principal Department Management
+  async createDepartment(departmentData: {
+    name: string;
+    code: string;
+    description?: string;
+  }) {
+    const response = await fetch(`${API_BASE_URL}/admin/departments`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(departmentData)
+    });
+
+    return this.handleResponse<ApiResponse>(response);
+  }
+
+  async getDepartments() {
+    const response = await fetch(`${API_BASE_URL}/admin/departments`, {
+      headers: this.getAuthHeaders()
+    });
+
+    return this.handleResponse<ApiResponse>(response);
+  }
+
+  async updateDepartment(deptId: string, departmentData: {
+    name: string;
+    code: string;
+    description?: string;
+  }) {
+    const response = await fetch(`${API_BASE_URL}/admin/departments/${deptId}`, {
+      method: 'PUT',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(departmentData)
+    });
+
+    return this.handleResponse<ApiResponse>(response);
+  }
+
+  // Principal Batch Year Management
+  async createBatchYear(batchData: {
+    year_range: string;
+    department: string;
+    sections: ('A' | 'B' | 'C' | 'D')[];
+  }) {
+    const response = await fetch(`${API_BASE_URL}/admin/batch-years`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(batchData)
+    });
+
+    return this.handleResponse<ApiResponse>(response);
+  }
+
+  async getBatchYears(department?: string) {
+    const url = department 
+      ? `${API_BASE_URL}/admin/batch-years?department=${encodeURIComponent(department)}`
+      : `${API_BASE_URL}/admin/batch-years`;
+    
+    const response = await fetch(url, {
+      headers: this.getAuthHeaders()
+    });
+
+    return this.handleResponse<ApiResponse>(response);
+  }
+
+  async addSectionsToBatchYear(batchId: string, sections: ('A' | 'B' | 'C' | 'D')[]) {
+    const response = await fetch(`${API_BASE_URL}/admin/batch-years/${batchId}/sections`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ sections })
+    });
+
+    return this.handleResponse<ApiResponse>(response);
+  }
+
+  async getDepartmentSections(deptId: string) {
+    const response = await fetch(`${API_BASE_URL}/admin/departments/${deptId}/sections`, {
+      headers: this.getAuthHeaders()
+    });
+
+    return this.handleResponse<ApiResponse>(response);
+  }
+
+  // Report Generation
+  async generateReport(filters: {
+    department: string;
+    batch_year: string;
+    section: 'A' | 'B' | 'C' | 'D';
+    format: 'csv' | 'pdf' | 'excel';
+  }) {
+    const response = await fetch(`${API_BASE_URL}/feedback/reports/generate`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(filters)
+    });
+
+    return this.handleResponse<ApiResponse>(response);
+  }
+
+  async getReportHistory(department?: string) {
+    const url = department 
+      ? `${API_BASE_URL}/feedback/reports/history?department=${encodeURIComponent(department)}`
+      : `${API_BASE_URL}/feedback/reports/history`;
+    
+    const response = await fetch(url, {
+      headers: this.getAuthHeaders()
+    });
+
+    return this.handleResponse<ApiResponse>(response);
+  }
+
+  async downloadReport(reportId: string) {
+    const response = await fetch(`${API_BASE_URL}/feedback/reports/download/${reportId}`, {
+      headers: {
+        'Authorization': `Bearer ${localStorage.getItem('authToken')}`
+      }
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || errorData.detail || 'Download failed');
+    }
+
+    // Return blob for file download
+    return response.blob();
+  }
+
+  // Helper method to download file from blob
+  downloadFileFromBlob(blob: Blob, filename: string) {
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
   }
 
   // Logout

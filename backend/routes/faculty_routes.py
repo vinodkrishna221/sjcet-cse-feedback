@@ -39,6 +39,7 @@ async def get_current_student(credentials: HTTPAuthorizationCredentials = Depend
 async def get_all_faculty(
     section: Optional[str] = None,
     subject: Optional[str] = None,
+    department: Optional[str] = None,
     limit: int = 100,
     skip: int = 0,
     admin: Any = Depends(get_current_admin)
@@ -51,6 +52,8 @@ async def get_all_faculty(
             filter_dict["sections"] = {"$in": [section]}
         if subject:
             filter_dict["subjects"] = {"$in": [subject]}
+        if department:
+            filter_dict["department"] = department.upper()
         
         faculty_list = await DatabaseOperations.find_many(
             "faculty", 

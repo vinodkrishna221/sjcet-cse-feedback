@@ -8,11 +8,13 @@ export interface User {
   id: string;
   role: UserRole;
   name: string;
-  section?: 'A' | 'B';
+  section?: 'A' | 'B' | 'C' | 'D';
   regNumber?: string;
   email?: string;
   phone?: string;
   subjects?: string[];
+  department?: string; // For HODs
+  batchYear?: string; // For students
 }
 
 interface AuthContextType {
@@ -101,10 +103,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           id: response.data.user.id,
           role: 'student',
           name: response.data.user.name,
-          section: response.data.user.section as 'A' | 'B',
+          section: response.data.user.section as 'A' | 'B' | 'C' | 'D',
           regNumber: response.data.user.regNumber,
           email: response.data.user.email,
-          phone: response.data.user.phone
+          phone: response.data.user.phone,
+          batchYear: response.data.user.batchYear
         };
         
         login(userData);
@@ -129,7 +132,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           role: response.data.user.role,
           name: response.data.user.name,
           email: response.data.user.email,
-          phone: response.data.user.phone
+          phone: response.data.user.phone,
+          department: response.data.user.department
         };
         
         login(userData);

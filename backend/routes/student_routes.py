@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, status, UploadFile, File
+from fastapi import APIRouter, HTTPException, Depends, status, UploadFile, File, Query
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import List, Dict, Any, Optional
 import pandas as pd
@@ -10,6 +10,9 @@ from models import (
 )
 from database import DatabaseOperations
 from auth import AuthService
+from pagination import PaginationParams, PaginationHelper, get_pagination_params
+from field_selection import get_field_selection, apply_field_selection_to_list, FieldSelector
+from bulk_operations import BulkOperationsHelper, BulkCreateRequest, BulkUpdateRequest, BulkDeleteRequest
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/students", tags=["Students"])
@@ -28,39 +31,58 @@ async def get_current_admin(credentials: HTTPAuthorizationCredentials = Depends(
 @router.get("/", response_model=APIResponse)
 async def get_all_students(
     section: Optional[str] = None,
-    limit: int = 100,
-    skip: int = 0,
+    department: Optional[str] = None,
+    batch_year: Optional[str] = None,
+    pagination: PaginationParams = Depends(get_pagination_params),
+    fields: Optional[List[str]] = Depends(get_field_selection),
     admin: Any = Depends(get_current_admin)
 ):
-    """Get all students with optional section filter"""
+    """Get all students with optional filters, pagination, and field selection"""
     try:
         filter_dict = {"is_active": True}
         if section:
             filter_dict["section"] = section
+        if department:
+            filter_dict["department"] = department.upper()
+        if batch_year:
+            filter_dict["batch_year"] = batch_year
+        
+        # Get total count
+        total = await DatabaseOperations.count_documents("students", filter_dict)
+        
+        # Get students with pagination
+        skip = PaginationHelper.get_skip(pagination.page, pagination.limit)
+        sort_dict = PaginationHelper.create_sort_dict(pagination.sort_by, pagination.sort_order)
         
         students = await DatabaseOperations.find_many(
             "students", 
             filter_dict=filter_dict,
-            limit=limit,
-            sort=[("name", 1)]
+            limit=pagination.limit,
+            skip=skip,
+            sort=sort_dict
         )
         
-        student_responses = [
-            StudentResponse(
-                id=student["id"],
-                reg_number=student["reg_number"],
-                name=student["name"],
-                section=student["section"],
-                email=student.get("email"),
-                year=student.get("year"),
-                branch=student.get("branch")
-            ) for student in students
-        ]
+        # Apply field selection
+        if fields:
+            fields = FieldSelector.validate_fields(fields, "students")
+            students = apply_field_selection_to_list(students, fields)
+        else:
+            # Use default fields
+            default_fields = FieldSelector.get_default_fields("students")
+            students = apply_field_selection_to_list(students, default_fields)
+        
+        # Create paginated response
+        paginated_response = PaginationHelper.create_paginated_response(
+            data=students,
+            total=total,
+            page=pagination.page,
+            limit=pagination.limit
+        )
         
         return APIResponse(
             success=True,
-            message=f"Retrieved {len(student_responses)} students",
-            data={"students": student_responses, "total": len(student_responses)}
+            message=f"Retrieved {len(students)} students",
+            data=paginated_response.dict()
         )
         
     except Exception as e:
@@ -448,4 +470,82 @@ async def get_section_summary(admin: Any = Depends(get_current_admin)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error retrieving section summary"
+        )
+
+@router.post("/bulk-create", response_model=APIResponse)
+async def bulk_create_students(
+    request: BulkCreateRequest,
+    admin: Any = Depends(get_current_admin)
+):
+    """Bulk create students"""
+    try:
+        result = await BulkOperationsHelper.bulk_create(
+            "students",
+            request.items,
+            validate_func=lambda item: []  # Add validation if needed
+        )
+        
+        return APIResponse(
+            success=result.success,
+            message=f"Bulk create completed: {result.successful} successful, {result.failed} failed",
+            data=result.dict()
+        )
+        
+    except Exception as e:
+        logger.error(f"Bulk create error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Bulk create failed"
+        )
+
+@router.put("/bulk-update", response_model=APIResponse)
+async def bulk_update_students(
+    request: BulkUpdateRequest,
+    admin: Any = Depends(get_current_admin)
+):
+    """Bulk update students"""
+    try:
+        result = await BulkOperationsHelper.bulk_update(
+            "students",
+            request.updates,
+            validate_func=lambda item: []  # Add validation if needed
+        )
+        
+        return APIResponse(
+            success=result.success,
+            message=f"Bulk update completed: {result.successful} successful, {result.failed} failed",
+            data=result.dict()
+        )
+        
+    except Exception as e:
+        logger.error(f"Bulk update error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Bulk update failed"
+        )
+
+@router.delete("/bulk-delete", response_model=APIResponse)
+async def bulk_delete_students(
+    request: BulkDeleteRequest,
+    admin: Any = Depends(get_current_admin)
+):
+    """Bulk delete students (soft delete)"""
+    try:
+        result = await BulkOperationsHelper.bulk_delete(
+            "students",
+            request.ids,
+            soft_delete=True
+        )
+        
+        return APIResponse(
+            success=result.success,
+            message=f"Bulk delete completed: {result.successful} successful, {result.failed} failed",
+            data=result.dict()
+        )
+        
+    except Exception as e:
+        logger.error(f"Bulk delete error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Bulk delete failed"
         )

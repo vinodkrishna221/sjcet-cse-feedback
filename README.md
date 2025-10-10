@@ -1,67 +1,57 @@
-# Student Feedback Management System
+# Feedback Management System
 
-A comprehensive web application for managing student feedback on faculty teaching performance, built with FastAPI backend and React frontend.
+A comprehensive web-based feedback management system for educational institutions, built with FastAPI backend and React frontend.
 
 ## 🚀 Features
 
-- **Student Authentication**: Secure login using registration number and date of birth
-- **Admin Dashboard**: HOD and Principal dashboards with comprehensive analytics
-- **Feedback System**: 10-question comprehensive feedback form for each teacher
-- **Analytics**: Detailed performance analytics and reporting
-- **Role-based Access**: Secure access control for students, HOD, and Principal
-- **Data Management**: Student and faculty management with CSV import/export
-- **Real-time Updates**: Live dashboard updates and notifications
+### Core Functionality
+- **Student Management**: Complete CRUD operations for student records
+- **Faculty Management**: Faculty profile and subject management
+- **Feedback System**: Anonymous feedback collection with semester tracking
+- **Report Generation**: Comprehensive reports in multiple formats (PDF, Excel, CSV)
+- **Admin Dashboard**: Role-based access control and system administration
+
+### Advanced Features
+- **Authentication & Security**: JWT-based auth with refresh tokens, CSRF protection
+- **Bulk Operations**: Import/export with validation and error reporting
+- **Analytics Dashboard**: Trend analysis and performance metrics
+- **Notification System**: Email notifications and deadline reminders
+- **Audit Trail**: Complete action logging and undo functionality
+- **PWA Support**: Progressive Web App capabilities
+- **Dark Mode**: Theme switching with accessibility features
 
 ## 🏗️ Architecture
 
 ### Backend (FastAPI)
 - **Framework**: FastAPI with async/await support
 - **Database**: MongoDB with Motor async driver
-- **Authentication**: JWT tokens with bcrypt password hashing
-- **Security**: Rate limiting, CORS protection, input validation
-- **API**: RESTful API with comprehensive error handling
+- **Authentication**: JWT tokens with refresh mechanism
+- **Security**: Rate limiting, CORS, CSRF protection
+- **API**: RESTful API with versioning and OpenAPI documentation
 
-### Frontend (React + TypeScript)
+### Frontend (React)
 - **Framework**: React 18 with TypeScript
-- **UI Library**: Shadcn/ui components with Tailwind CSS
-- **State Management**: React Context for authentication
-- **Routing**: React Router v6 with protected routes
-- **HTTP Client**: Fetch API with error handling
+- **State Management**: Zustand for global state
+- **UI Components**: Shadcn/ui with Tailwind CSS
+- **Forms**: React Hook Form with Zod validation
+- **Routing**: React Router DOM with lazy loading
+- **Testing**: Jest, React Testing Library, Playwright
 
 ## 📋 Prerequisites
 
-- Node.js 18+ and npm/yarn
-- Python 3.11+
-- MongoDB 7.0+
-- Docker and Docker Compose (optional)
+- Node.js 18+ and npm
+- Python 3.8+
+- MongoDB 5.0+
+- Redis 6.0+ (for rate limiting)
 
-## 🚀 Quick Start
+## 🛠️ Installation
 
-### Using Docker Compose (Recommended)
+### Backend Setup
 
 1. **Clone the repository**
    ```bash
    git clone <repository-url>
-   cd student-feedback-system
-   ```
-
-2. **Start all services**
-   ```bash
-   docker-compose up -d
-   ```
-
-3. **Access the application**
-   - Frontend: http://localhost:3000
-   - Backend API: http://localhost:8001/api
-   - API Documentation: http://localhost:8001/docs
-
-### Manual Setup
-
-#### Backend Setup
-
-1. **Navigate to backend directory**
-   ```bash
-   cd backend
+   cd feedback-system/backend
    ```
 
 2. **Create virtual environment**
@@ -75,48 +65,70 @@ A comprehensive web application for managing student feedback on faculty teachin
    pip install -r requirements.txt
    ```
 
-4. **Create environment file**
+4. **Environment configuration**
    ```bash
-   cp env.example .env
+   cp .env.example .env
    # Edit .env with your configuration
    ```
 
-5. **Start MongoDB**
+5. **Database setup**
    ```bash
+   # Start MongoDB
    mongod
+   
+   # Run database initialization
+   python init-mongo.js
    ```
 
-6. **Run the backend**
+6. **Run the server**
    ```bash
-   uvicorn server:app --host 0.0.0.0 --port 8001 --reload
+   uvicorn server:app --reload --host 0.0.0.0 --port 8000
    ```
 
-#### Frontend Setup
+### Frontend Setup
 
 1. **Navigate to frontend directory**
    ```bash
-   cd frontend
+   cd ../frontend
    ```
 
 2. **Install dependencies**
    ```bash
    npm install
-   # or
-   yarn install
    ```
 
-3. **Create environment file**
+3. **Environment configuration**
    ```bash
    cp .env.example .env.local
-   # Edit .env.local with your configuration
+   # Edit .env.local with your API URL
    ```
 
-4. **Start the frontend**
+4. **Start development server**
    ```bash
    npm run dev
-   # or
-   yarn dev
    ```
+
+## 🧪 Testing
+
+### Backend Tests
+```bash
+cd backend
+pytest tests/ -v --cov=. --cov-report=html
+```
+
+### Frontend Tests
+```bash
+cd frontend
+npm run test              # Unit tests
+npm run test:coverage     # Coverage report
+npm run test:e2e          # E2E tests
+```
+
+## 📚 API Documentation
+
+Once the backend is running, visit:
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
 
 ## 🔧 Configuration
 
@@ -124,217 +136,152 @@ A comprehensive web application for managing student feedback on faculty teachin
 
 #### Backend (.env)
 ```env
-# Database Configuration
-MONGO_URL=mongodb://localhost:27017
-DB_NAME=student_feedback_db
-
-# Security Configuration
-SECRET_KEY=your-super-secret-jwt-key-change-this-in-production
-ACCESS_TOKEN_EXPIRE_MINUTES=480
-
-# CORS Configuration
-CORS_ORIGINS=http://localhost:3000,http://localhost:5173
-
-# Server Configuration
-HOST=0.0.0.0
-PORT=8001
-
-# Rate Limiting
-RATE_LIMIT_PER_MINUTE=60
+DATABASE_URL=mongodb://localhost:27017/feedback_system
+SECRET_KEY=your-secret-key
+JWT_SECRET_KEY=your-jwt-secret
+JWT_ALGORITHM=HS256
+JWT_ACCESS_TOKEN_EXPIRE_MINUTES=120
+JWT_REFRESH_TOKEN_EXPIRE_DAYS=7
+REDIS_URL=redis://localhost:6379
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_USERNAME=your-email@gmail.com
+EMAIL_PASSWORD=your-app-password
 ```
 
 #### Frontend (.env.local)
 ```env
-VITE_BACKEND_URL=http://localhost:8001/api
+VITE_API_URL=http://localhost:8000
+VITE_APP_NAME=Feedback Management System
 ```
-
-## 👥 Default Credentials
-
-### Admin Accounts
-- **HOD**: username=`hod_cse`, password=`hod@123`
-- **Principal**: username=`principal`, password=`principal@123`
-
-### Sample Students
-- **Student A**: Reg=`24G31A0501`, DOB=`2003-05-15`
-- **Student B**: Reg=`24G31A0521`, DOB=`2003-01-07`
-
-## 📊 Database Schema
-
-### Collections
-
-#### Students
-```json
-{
-  "id": "uuid",
-  "reg_number": "string",
-  "name": "string",
-  "section": "A|B|C|D",
-  "dob": "YYYY-MM-DD",
-  "email": "string",
-  "phone": "string",
-  "is_active": "boolean"
-}
-```
-
-#### Faculty
-```json
-{
-  "id": "uuid",
-  "faculty_id": "string",
-  "name": "string",
-  "subjects": ["string"],
-  "sections": ["A|B|C|D"],
-  "email": "string",
-  "phone": "string",
-  "is_active": "boolean"
-}
-```
-
-#### Feedback Submissions
-```json
-{
-  "id": "uuid",
-  "student_section": "A|B|C|D",
-  "faculty_feedbacks": [
-    {
-      "faculty_id": "string",
-      "faculty_name": "string",
-      "subject": "string",
-      "question_ratings": [
-        {
-          "question_id": "string",
-          "question": "string",
-          "rating": "number"
-        }
-      ],
-      "overall_rating": "number",
-      "detailed_feedback": "string",
-      "suggestions": "string"
-    }
-  ],
-  "submitted_at": "datetime",
-  "is_anonymous": "boolean"
-}
-```
-
-## 🔒 Security Features
-
-- **JWT Authentication**: Secure token-based authentication
-- **Password Hashing**: bcrypt with salt rounds
-- **Rate Limiting**: Configurable request rate limiting
-- **CORS Protection**: Configurable cross-origin resource sharing
-- **Input Validation**: Comprehensive data validation
-- **Security Headers**: XSS, CSRF, and clickjacking protection
-- **Role-based Access**: Granular permission system
-
-## 🧪 Testing
-
-### Backend Testing
-```bash
-cd backend
-python backend_test_fixed.py
-```
-
-### Frontend Testing
-```bash
-cd frontend
-npm run test
-```
-
-## 📈 Performance Optimizations
-
-- **Database Indexing**: Optimized MongoDB indexes
-- **Connection Pooling**: Efficient database connections
-- **Caching**: In-memory caching for frequently accessed data
-- **Async Operations**: Non-blocking I/O operations
-- **Bundle Optimization**: Code splitting and tree shaking
 
 ## 🚀 Deployment
 
-### Production Environment
-
-1. **Set production environment variables**
-2. **Use production-grade MongoDB instance**
-3. **Configure reverse proxy (nginx)**
-4. **Set up SSL certificates**
-5. **Configure monitoring and logging**
-
 ### Docker Deployment
-```bash
-docker-compose -f docker-compose.prod.yml up -d
-```
 
-## 📝 API Documentation
+1. **Build and run with Docker Compose**
+   ```bash
+   docker-compose up -d
+   ```
 
-### Authentication Endpoints
-- `POST /api/auth/student/login` - Student login
-- `POST /api/auth/admin/login` - Admin login
-- `POST /api/auth/verify-token` - Token verification
+2. **Access the application**
+   - Frontend: http://localhost:3000
+   - Backend: http://localhost:8000
+   - MongoDB: localhost:27017
+   - Redis: localhost:6379
 
-### Student Management
-- `GET /api/students/` - Get all students
-- `POST /api/students/` - Create student
-- `PUT /api/students/{id}` - Update student
-- `DELETE /api/students/{id}` - Delete student
+### Production Deployment
 
-### Faculty Management
-- `GET /api/faculty/` - Get all faculty
-- `POST /api/faculty/` - Create faculty
-- `PUT /api/faculty/{id}` - Update faculty
-- `DELETE /api/faculty/{id}` - Delete faculty
+1. **Backend deployment**
+   ```bash
+   # Install production dependencies
+   pip install -r requirements.txt
+   
+   # Run with production server
+   gunicorn server:app -w 4 -k uvicorn.workers.UvicornWorker
+   ```
 
-### Feedback System
-- `POST /api/feedback/submit` - Submit feedback
-- `GET /api/feedback/analytics/dashboard` - Dashboard analytics
-- `GET /api/feedback/questions` - Get feedback questions
+2. **Frontend deployment**
+   ```bash
+   # Build for production
+   npm run build
+   
+   # Serve with nginx or similar
+   ```
 
-## 🐛 Troubleshooting
+## 📖 Usage Guide
 
-### Common Issues
+### Admin Login
+1. Navigate to `/admin-login`
+2. Use admin credentials to access the system
+3. Access HOD dashboard for department management
 
-1. **Database Connection Failed**
-   - Check MongoDB is running
-   - Verify connection string in .env
-   - Check network connectivity
+### Student Login
+1. Navigate to `/student-login`
+2. Use registration number and password
+3. Submit feedback for assigned faculty
 
-2. **CORS Errors**
-   - Verify CORS_ORIGINS in backend .env
-   - Check frontend URL matches allowed origins
+### Feedback Submission
+1. Select semester and academic year
+2. Rate faculty on various criteria (1-10 scale)
+3. Provide detailed feedback and suggestions
+4. Submit anonymously or with identification
 
-3. **Authentication Issues**
-   - Verify SECRET_KEY is set
-   - Check token expiration settings
-   - Clear browser storage and retry
+### Report Generation
+1. Access reports section from admin dashboard
+2. Select report type and filters
+3. Choose export format (PDF, Excel, CSV)
+4. Download or email reports
 
-4. **Rate Limiting**
-   - Check RATE_LIMIT_PER_MINUTE setting
-   - Wait for rate limit window to reset
+## 🔒 Security Features
+
+- **Authentication**: JWT tokens with refresh mechanism
+- **Authorization**: Role-based access control
+- **Rate Limiting**: Redis-based rate limiting
+- **CSRF Protection**: Cross-site request forgery protection
+- **Input Validation**: Comprehensive input validation
+- **Password Security**: Strong password policies with bcrypt
+- **Audit Logging**: Complete action audit trail
+
+## 🎨 UI/UX Features
+
+- **Responsive Design**: Mobile-first responsive layout
+- **Dark Mode**: Theme switching capability
+- **Accessibility**: WCAG 2.1 AA compliance
+- **Loading States**: Skeleton screens and loading indicators
+- **Error Handling**: Graceful error handling and user feedback
+- **Keyboard Navigation**: Full keyboard accessibility
+
+## 📊 Performance Features
+
+- **Code Splitting**: Route-based code splitting
+- **Virtual Scrolling**: Efficient rendering of large lists
+- **Caching**: Redis caching for improved performance
+- **PWA**: Progressive Web App capabilities
+- **Bundle Optimization**: Optimized JavaScript bundles
 
 ## 🤝 Contributing
 
 1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Add tests for new features
-5. Submit a pull request
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-## 📄 License
+### Development Guidelines
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+- Follow the existing code style
+- Write tests for new features
+- Update documentation as needed
+- Use conventional commit messages
+- Ensure all tests pass before submitting
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🆘 Support
 
 For support and questions:
 - Create an issue in the repository
-- Check the troubleshooting section
-- Review the API documentation
+- Contact the development team
+- Check the documentation and FAQ
 
 ## 🔄 Changelog
 
-### v1.0.0
-- Initial release
-- Student feedback system
-- Admin dashboards
-- Analytics and reporting
-- Security improvements
-- Docker support
+### Version 1.0.0
+- Initial release with core functionality
+- Student and faculty management
+- Feedback system with analytics
+- Report generation
+- Admin dashboard
+- Security features
+- PWA support
+
+## 🏆 Acknowledgments
+
+- FastAPI team for the excellent framework
+- React team for the frontend library
+- Shadcn/ui for the beautiful components
+- MongoDB for the database solution
+- All contributors and testers

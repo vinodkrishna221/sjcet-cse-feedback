@@ -9,7 +9,10 @@ export interface QuestionRating {
   questionId: string;
   question: string;
   rating: number;
+  weight: number;
 }
+
+export type GradeInterpretation = 'Excellent' | 'Very Good' | 'Good' | 'Average' | 'Needs Improvement';
 
 export interface IndividualFeedback {
   teacherId: string;
@@ -17,6 +20,8 @@ export interface IndividualFeedback {
   subject: string;
   questionRatings: QuestionRating[];
   overallRating: number;
+  weightedScore: number; // Overall weighted percentage (0-100)
+  gradeInterpretation: GradeInterpretation;
   detailedFeedback?: string; // Optional detailed feedback
   suggestions: string;
 }
@@ -41,56 +46,142 @@ export interface LegacyFeedbackData {
   studentSection: string;
 }
 
-// Feedback questions
+// Department and Batch Year interfaces
+export interface Department {
+  id: string;
+  name: string;
+  code: string;
+  description?: string;
+  hod?: {
+    id: string;
+    name: string;
+    username: string;
+  };
+  hod_name?: string;
+  is_active?: boolean;
+  created_at: string;
+}
+
+export interface BatchYear {
+  id: string;
+  year_range: string; // e.g., "2024-2028"
+  department: string;
+  sections: ('A' | 'B' | 'C' | 'D')[];
+  created_at: string;
+}
+
+export interface SectionInfo {
+  section: 'A' | 'B' | 'C' | 'D';
+  batch_year: string;
+  batch_id: string;
+}
+
+export interface HODCreate {
+  username: string;
+  password: string;
+  name: string;
+  department: string;
+  email?: string;
+  phone?: string;
+}
+
+// Weighted Feedback questions
 export const FEEDBACK_QUESTIONS = [
   {
-    id: 'teaching_quality',
-    question: 'How would you rate the overall teaching quality?',
-    category: 'Teaching'
+    id: 'punctuality',
+    question: 'Punctuality',
+    weight: 10.0,
+    category: 'Professionalism'
   },
   {
-    id: 'subject_knowledge',
-    question: 'How well does the teacher demonstrate subject knowledge?',
-    category: 'Knowledge'
-  },
-  {
-    id: 'communication',
-    question: 'How clear and effective is the teacher\'s communication?',
+    id: 'voice_clarity',
+    question: 'Voice Clarity and Audibility',
+    weight: 10.0,
     category: 'Communication'
   },
   {
-    id: 'engagement',
-    question: 'How engaging are the classes and teaching methods?',
-    category: 'Engagement'
+    id: 'blackboard_usage',
+    question: 'Usage of Blackboard and Legibility of Handwriting on the Board',
+    weight: 10.0,
+    category: 'Teaching Method'
   },
   {
-    id: 'availability',
-    question: 'How accessible is the teacher for doubts and guidance?',
-    category: 'Availability'
+    id: 'student_interaction',
+    question: 'Interaction with Students and Clarification of Doubts During the Class',
+    weight: 15.0,
+    category: 'Student Engagement'
   },
   {
-    id: 'preparation',
-    question: 'How well-prepared does the teacher come to class?',
-    category: 'Preparation'
+    id: 'class_inspiring',
+    question: 'Making the Class Inspiring and Interesting',
+    weight: 15.0,
+    category: 'Teaching Quality'
   },
   {
-    id: 'practical_approach',
-    question: 'How effectively does the teacher use practical examples?',
-    category: 'Practical'
+    id: 'discipline_maintenance',
+    question: 'Maintenance of Discipline in the Classroom',
+    weight: 10.0,
+    category: 'Classroom Management'
   },
   {
-    id: 'assessment',
-    question: 'How fair and helpful are the assessments and feedback?',
+    id: 'availability_outside',
+    question: 'Availability in the Campus Outside the Classroom',
+    weight: 5.0,
+    category: 'Accessibility'
+  },
+  {
+    id: 'syllabus_coverage',
+    question: 'Rate of Syllabus Coverage',
+    weight: 10.0,
+    category: 'Curriculum'
+  },
+  {
+    id: 'paper_analysis',
+    question: 'Analysis of Mid Papers & University Papers in the Class',
+    weight: 10.0,
     category: 'Assessment'
   },
   {
-    id: 'classroom_management',
-    question: 'How well does the teacher manage the classroom environment?',
-    category: 'Management'
-  },
-  {
-    id: 'motivation',
-    question: 'How well does the teacher motivate students to learn?',
-    category: 'Motivation'
+    id: 'question_bank',
+    question: 'Giving Question Bank and Necessary Material',
+    weight: 5.0,
+    category: 'Resources'
   }
 ];
+
+// Helper function to calculate weighted score
+export const calculateWeightedScore = (questionRatings: QuestionRating[]): { score: number; grade: GradeInterpretation } => {
+  if (!questionRatings || questionRatings.length === 0) {
+    return { score: 0, grade: 'Needs Improvement' };
+  }
+  
+  let totalWeightedScore = 0;
+  let totalWeight = 0;
+  
+  for (const rating of questionRatings) {
+    // Convert 1-10 scale to percentage and apply weight
+    const scorePercentage = (rating.rating / 10.0) * 100;
+    const weightedScore = scorePercentage * (rating.weight / 100.0);
+    totalWeightedScore += weightedScore;
+    totalWeight += rating.weight;
+  }
+  
+  // Normalize by total weight if it doesn't equal 100%
+  const finalScore = totalWeight > 0 ? (totalWeightedScore / totalWeight) * 100 : 0;
+  
+  // Determine grade interpretation
+  let grade: GradeInterpretation;
+  if (finalScore >= 90) {
+    grade = 'Excellent';
+  } else if (finalScore >= 80) {
+    grade = 'Very Good';
+  } else if (finalScore >= 70) {
+    grade = 'Good';
+  } else if (finalScore >= 60) {
+    grade = 'Average';
+  } else {
+    grade = 'Needs Improvement';
+  }
+  
+  return { score: Math.round(finalScore * 100) / 100, grade };
+};

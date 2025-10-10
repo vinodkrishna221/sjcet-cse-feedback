@@ -5,6 +5,10 @@ import jwt
 import os
 import logging
 import bcrypt
+import secrets
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 from models import Admin, Student
 from database import DatabaseOperations
 
@@ -13,20 +17,16 @@ logger = logging.getLogger(__name__)
 # Password hashing - use bcrypt directly for better compatibility
 def hash_password(password: str) -> str:
     """Hash password using bcrypt directly"""
-    # Ensure password is not longer than 72 bytes for bcrypt compatibility
+    # Use bcrypt with proper handling for longer passwords
     password_bytes = password.encode('utf-8')
-    if len(password_bytes) > 72:
-        password_bytes = password_bytes[:72]
-    salt = bcrypt.gensalt(rounds=12)
+    # Use bcrypt with higher rounds for better security
+    salt = bcrypt.gensalt(rounds=14)
     return bcrypt.hashpw(password_bytes, salt).decode('utf-8')
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
     """Verify password using bcrypt directly"""
     try:
-        # Ensure password is not longer than 72 bytes for bcrypt compatibility
         password_bytes = plain_password.encode('utf-8')
-        if len(password_bytes) > 72:
-            password_bytes = password_bytes[:72]
         return bcrypt.checkpw(password_bytes, hashed_password.encode('utf-8'))
     except Exception as e:
         logger.error(f"Password verification failed: {e}")
@@ -37,7 +37,8 @@ SECRET_KEY = os.environ.get("SECRET_KEY")
 if not SECRET_KEY:
     raise ValueError("SECRET_KEY environment variable is required for security")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", "480"))  # 8 hours default
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", "120"))  # 2 hours default
+REFRESH_TOKEN_EXPIRE_DAYS = int(os.environ.get("REFRESH_TOKEN_EXPIRE_DAYS", "7"))  # 7 days default
 
 class AuthService:
     
@@ -64,7 +65,16 @@ class AuthService:
         else:
             expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         
-        to_encode.update({"exp": expire})
+        to_encode.update({"exp": expire, "type": "access"})
+        encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+        return encoded_jwt
+    
+    @staticmethod
+    def create_refresh_token(data: Dict[str, Any]) -> str:
+        """Create JWT refresh token"""
+        to_encode = data.copy()
+        expire = datetime.utcnow() + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
+        to_encode.update({"exp": expire, "type": "refresh"})
         encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
         return encoded_jwt
     
@@ -73,6 +83,21 @@ class AuthService:
         """Decode JWT access token"""
         try:
             payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            if payload.get("type") != "access":
+                return None
+            return payload
+        except jwt.ExpiredSignatureError:
+            return None
+        except jwt.InvalidTokenError:
+            return None
+    
+    @staticmethod
+    def decode_refresh_token(token: str) -> Optional[Dict[str, Any]]:
+        """Decode JWT refresh token"""
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            if payload.get("type") != "refresh":
+                return None
             return payload
         except jwt.ExpiredSignatureError:
             return None
@@ -155,6 +180,139 @@ class AuthService:
             return None
             
         return Student(**student_data)
+    
+    @staticmethod
+    async def request_password_reset(email: str) -> bool:
+        """Request password reset for admin user"""
+        try:
+            # Find admin by email
+            admin_data = await DatabaseOperations.find_one(
+                "admins",
+                {"email": email, "is_active": True}
+            )
+            
+            if not admin_data:
+                # Don't reveal if email exists or not
+                return True
+            
+            # Generate reset token
+            reset_token = secrets.token_urlsafe(32)
+            expires_at = datetime.utcnow() + timedelta(hours=1)  # 1 hour expiry
+            
+            # Store reset token in database
+            await DatabaseOperations.insert_one("password_reset_tokens", {
+                "token": reset_token,
+                "user_id": admin_data["id"],
+                "user_type": "admin",
+                "email": email,
+                "expires_at": expires_at,
+                "used": False,
+                "created_at": datetime.utcnow()
+            })
+            
+            # Send reset email
+            await AuthService._send_password_reset_email(email, reset_token)
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Password reset request error: {e}")
+            return True  # Don't reveal errors
+    
+    @staticmethod
+    async def reset_password(token: str, new_password: str) -> bool:
+        """Reset password using token"""
+        try:
+            # Find valid reset token
+            reset_data = await DatabaseOperations.find_one(
+                "password_reset_tokens",
+                {
+                    "token": token,
+                    "used": False,
+                    "expires_at": {"$gt": datetime.utcnow()}
+                }
+            )
+            
+            if not reset_data:
+                return False
+            
+            # Hash new password
+            password_hash = AuthService.get_password_hash(new_password)
+            
+            # Update user password
+            if reset_data["user_type"] == "admin":
+                await DatabaseOperations.update_one(
+                    "admins",
+                    {"id": reset_data["user_id"]},
+                    {"password_hash": password_hash}
+                )
+            else:
+                # Student password reset not implemented yet
+                return False
+            
+            # Mark token as used
+            await DatabaseOperations.update_one(
+                "password_reset_tokens",
+                {"token": token},
+                {"used": True, "used_at": datetime.utcnow()}
+            )
+            
+            return True
+            
+        except Exception as e:
+            logger.error(f"Password reset error: {e}")
+            return False
+    
+    @staticmethod
+    async def _send_password_reset_email(email: str, token: str):
+        """Send password reset email"""
+        try:
+            # Email configuration
+            smtp_server = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
+            smtp_port = int(os.environ.get("SMTP_PORT", "587"))
+            smtp_username = os.environ.get("SMTP_USERNAME")
+            smtp_password = os.environ.get("SMTP_PASSWORD")
+            
+            if not smtp_username or not smtp_password:
+                logger.warning("SMTP credentials not configured, skipping email send")
+                return
+            
+            # Create message
+            msg = MIMEMultipart()
+            msg['From'] = smtp_username
+            msg['To'] = email
+            msg['Subject'] = "Password Reset Request - Student Feedback System"
+            
+            # Email body
+            reset_url = f"{os.environ.get('FRONTEND_URL', 'http://localhost:3000')}/reset-password?token={token}"
+            body = f"""
+            You have requested a password reset for your account.
+            
+            Click the link below to reset your password:
+            {reset_url}
+            
+            This link will expire in 1 hour.
+            
+            If you did not request this password reset, please ignore this email.
+            
+            Best regards,
+            Student Feedback System Team
+            """
+            
+            msg.attach(MIMEText(body, 'plain'))
+            
+            # Send email
+            server = smtplib.SMTP(smtp_server, smtp_port)
+            server.starttls()
+            server.login(smtp_username, smtp_password)
+            text = msg.as_string()
+            server.sendmail(smtp_username, email, text)
+            server.quit()
+            
+            logger.info(f"Password reset email sent to {email}")
+            
+        except Exception as e:
+            logger.error(f"Failed to send password reset email: {e}")
 
 class AuthHelpers:
     

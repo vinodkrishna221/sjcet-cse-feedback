@@ -7,7 +7,7 @@ import { LogOut, Send, Star, CircleCheck as CheckCircle2, User } from "lucide-re
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import TeacherFeedbackModal from "@/components/TeacherFeedbackModal";
-import { Teacher, IndividualFeedback, BundledFeedback } from "@/types/feedback";
+import { Teacher, IndividualFeedback, BundledFeedback, calculateWeightedScore } from "@/types/feedback";
 import { useTeachers } from "@/hooks/useTeachers";
 import { apiService } from "@/services/api";
 
@@ -22,11 +22,19 @@ const FeedbackForm = () => {
   const { teachers: sectionTeachers, loading: teachersLoading, error: teachersError } = useTeachers(user?.section);
 
   const handleTeacherFeedbackSave = (feedback: IndividualFeedback) => {
+    // Calculate weighted score and grade interpretation
+    const { score, grade } = calculateWeightedScore(feedback.questionRatings);
+    const updatedFeedback = {
+      ...feedback,
+      weightedScore: score,
+      gradeInterpretation: grade
+    };
+    
     setTeacherFeedbacks(prev => ({
       ...prev,
-      [feedback.teacherId]: feedback
+      [feedback.teacherId]: updatedFeedback
     }));
-    toast.success(`Comprehensive feedback saved for ${feedback.teacherName} (${feedback.overallRating}/10)`);
+    toast.success(`Comprehensive feedback saved for ${feedback.teacherName} (${score.toFixed(1)}% - ${grade})`);
   };
 
   const handleSubmitAllFeedback = async () => {
@@ -41,12 +49,6 @@ const FeedbackForm = () => {
 
     try {
       // Prepare feedback data for backend schema (FeedbackCreate)
-      const toFiveScale = (value: number) => {
-        // Convert 1-10 scale to 1-5 (rounded to nearest integer within bounds)
-        const converted = Math.round(value / 2);
-        return Math.min(5, Math.max(1, converted));
-      };
-
       const feedbackData = {
         student_section: user?.section,
         faculty_feedbacks: Object.values(teacherFeedbacks).map(tf => ({
@@ -56,9 +58,12 @@ const FeedbackForm = () => {
           question_ratings: tf.questionRatings.map(qr => ({
             question_id: qr.questionId,
             question: qr.question,
-            rating: toFiveScale(qr.rating)
+            rating: qr.rating, // Keep 1-10 scale
+            weight: qr.weight
           })),
-          overall_rating: parseFloat((tf.overallRating / 2).toFixed(1)),
+          overall_rating: tf.overallRating,
+          weighted_score: tf.weightedScore,
+          grade_interpretation: tf.gradeInterpretation,
           detailed_feedback: (tf as any).detailedFeedback || '',
           suggestions: tf.suggestions || ''
         }))

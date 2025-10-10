@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Dict, Any
-from models import AdminLogin, StudentLogin, LoginResponse, APIResponse
+from models import AdminLogin, StudentLogin, LoginResponse, APIResponse, PasswordResetRequest, PasswordReset
 from auth import AuthService, AuthHelpers
 import logging
 
@@ -25,8 +25,11 @@ async def admin_login(credentials: AdminLogin):
                 detail="Invalid username or password"
             )
         
-        # Create access token
+        # Create access and refresh tokens
         access_token = AuthService.create_access_token(
+            data={"sub": admin.id, "role": admin.role}
+        )
+        refresh_token = AuthService.create_refresh_token(
             data={"sub": admin.id, "role": admin.role}
         )
         
@@ -39,7 +42,9 @@ async def admin_login(credentials: AdminLogin):
             data={
                 "user": user_data,
                 "access_token": access_token,
-                "token_type": "bearer"
+                "refresh_token": refresh_token,
+                "token_type": "bearer",
+                "expires_in": 7200  # 2 hours in seconds
             }
         )
         
@@ -68,8 +73,11 @@ async def student_login(credentials: StudentLogin):
                 detail="Invalid registration number or date of birth"
             )
         
-        # Create access token
+        # Create access and refresh tokens
         access_token = AuthService.create_access_token(
+            data={"sub": student.id, "role": "student"}
+        )
+        refresh_token = AuthService.create_refresh_token(
             data={"sub": student.id, "role": "student"}
         )
         
@@ -82,7 +90,9 @@ async def student_login(credentials: StudentLogin):
             data={
                 "user": user_data,
                 "access_token": access_token,
-                "token_type": "bearer"
+                "refresh_token": refresh_token,
+                "token_type": "bearer",
+                "expires_in": 7200  # 2 hours in seconds
             }
         )
         
@@ -153,6 +163,104 @@ async def verify_token(credentials: HTTPAuthorizationCredentials = Depends(secur
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error during token verification"
+        )
+
+@router.post("/refresh", response_model=APIResponse)
+async def refresh_token(refresh_data: Dict[str, str]):
+    """Refresh access token using refresh token"""
+    try:
+        refresh_token = refresh_data.get("refresh_token")
+        if not refresh_token:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Refresh token required"
+            )
+        
+        # Decode refresh token
+        payload = AuthService.decode_refresh_token(refresh_token)
+        if not payload:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired refresh token"
+            )
+        
+        user_id = payload.get("sub")
+        user_role = payload.get("role")
+        
+        if not user_id or not user_role:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid refresh token payload"
+            )
+        
+        # Create new access token
+        new_access_token = AuthService.create_access_token(
+            data={"sub": user_id, "role": user_role}
+        )
+        
+        return APIResponse(
+            success=True,
+            message="Token refreshed successfully",
+            data={
+                "access_token": new_access_token,
+                "token_type": "bearer",
+                "expires_in": 7200  # 2 hours in seconds
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Token refresh error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error during token refresh"
+        )
+
+@router.post("/request-password-reset", response_model=APIResponse)
+async def request_password_reset(request: PasswordResetRequest):
+    """Request password reset for admin user"""
+    try:
+        success = await AuthService.request_password_reset(request.email)
+        
+        return APIResponse(
+            success=True,
+            message="If the email exists, a password reset link has been sent",
+            data=None
+        )
+        
+    except Exception as e:
+        logger.error(f"Password reset request error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error during password reset request"
+        )
+
+@router.post("/reset-password", response_model=APIResponse)
+async def reset_password(reset_data: PasswordReset):
+    """Reset password using token"""
+    try:
+        success = await AuthService.reset_password(reset_data.token, reset_data.new_password)
+        
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid or expired reset token"
+            )
+        
+        return APIResponse(
+            success=True,
+            message="Password reset successfully",
+            data=None
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Password reset error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error during password reset"
         )
 
 @router.post("/logout", response_model=APIResponse)

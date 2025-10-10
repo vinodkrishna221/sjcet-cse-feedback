@@ -14,20 +14,23 @@ import { useAuth } from "@/context/AuthContext";
 import { apiService } from "@/services/api";
 import { toast } from "sonner";
 import Papa from 'papaparse';
-import { BundledFeedback as SubmissionBundle } from "@/types/feedback";
+import { BundledFeedback as SubmissionBundle, BatchYear, Department } from "@/types/feedback";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import ReportGenerator from "@/components/ReportGenerator";
 
 // Backend-compatible interfaces based on models.py
 interface StudentDetails {
   id: string;
   reg_number: string;
   name: string;
-  section: 'A' | 'B';
+  section: 'A' | 'B' | 'C' | 'D';
   dob: string;
   email?: string;
   phone?: string;
   year?: string;
   branch?: string;
+  department?: string;
+  batch_year?: string;
 }
 
 interface TeacherDetails {
@@ -35,7 +38,7 @@ interface TeacherDetails {
   faculty_id: string;
   name: string;
   subjects: string[];
-  sections: ('A' | 'B')[];
+  sections: ('A' | 'B' | 'C' | 'D')[];
   email?: string;
   phone?: string;
   department?: string;
@@ -72,7 +75,9 @@ export default function HODDashboard() {
     section: 'A',
     dob: '',
     email: '',
-    phone: ''
+    phone: '',
+    department: user?.department || 'CSE',
+    batch_year: '2024-2028'
   });
   const [studentFilter, setStudentFilter] = useState('all');
   const [importErrors, setImportErrors] = useState<string[]>([]);
@@ -93,7 +98,8 @@ export default function HODDashboard() {
     subjects: [],
     sections: [],
     email: '',
-    phone: ''
+    phone: '',
+    department: user?.department || 'CSE'
   });
   const [newSubject, setNewSubject] = useState('');
 
@@ -101,6 +107,12 @@ export default function HODDashboard() {
   const [editingTeacher, setEditingTeacher] = useState<TeacherDetails | null>(null);
   const [isTeacherDialogOpen, setIsTeacherDialogOpen] = useState(false);
   const [teacherEditForm, setTeacherEditForm] = useState<Partial<TeacherDetails>>({});
+  
+  // Batch year and department filtering state
+  const [selectedBatchYear, setSelectedBatchYear] = useState<string>('all');
+  const [selectedSection, setSelectedSection] = useState<string>('all');
+  const [batchYears, setBatchYears] = useState<BatchYear[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
 
   useEffect(() => {
     // Check if user is logged in and is HOD
@@ -113,17 +125,44 @@ export default function HODDashboard() {
     loadDashboardData();
   }, [user, navigate]);
 
+  // Reload data when filters change
+  useEffect(() => {
+    if (user?.role === 'hod') {
+      loadDashboardData();
+    }
+  }, [selectedBatchYear, selectedSection]);
+
   const loadDashboardData = async () => {
     try {
       setIsLoading(true);
-      // Load students
-      const studentsResponse = await apiService.getAllStudents();
+      
+      // Load batch years and departments
+      const batchYearsResponse = await apiService.getBatchYears(user?.department);
+      if (batchYearsResponse.success && batchYearsResponse.data?.batch_years) {
+        setBatchYears(batchYearsResponse.data.batch_years);
+      }
+      
+      const departmentsResponse = await apiService.getDepartments();
+      if (departmentsResponse.success && departmentsResponse.data?.departments) {
+        setDepartments(departmentsResponse.data.departments);
+      }
+      
+      // Load students with department filter
+      const studentsResponse = await apiService.getAllStudents(
+        undefined, // section
+        user?.department, // department
+        selectedBatchYear !== 'all' ? selectedBatchYear : undefined // batch_year
+      );
       if (studentsResponse.success && studentsResponse.data?.students) {
         setStudents(studentsResponse.data.students);
       }
 
-      // Load teachers
-      const teachersResponse = await apiService.getAllFaculty();
+      // Load teachers with department filter
+      const teachersResponse = await apiService.getAllFaculty(
+        undefined, // section
+        undefined, // subject
+        user?.department // department
+      );
       if (teachersResponse.success && teachersResponse.data?.faculty) {
         setTeachers(teachersResponse.data.faculty);
       }
@@ -207,7 +246,9 @@ export default function HODDashboard() {
         email: newStudent.email || undefined,
         phone: newStudent.phone || undefined,
         year: newStudent.year || undefined,
-        branch: newStudent.branch || undefined
+        branch: newStudent.branch || undefined,
+        department: newStudent.department,
+        batch_year: newStudent.batch_year
       };
 
       const response = await apiService.createStudent(studentData);
@@ -223,7 +264,9 @@ export default function HODDashboard() {
           section: 'A',
           dob: '',
           email: '',
-          phone: ''
+          phone: '',
+          department: user?.department || 'CSE',
+          batch_year: '2024-2028'
         });
         
         toast.success("Student registered successfully");
@@ -618,7 +661,7 @@ export default function HODDashboard() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Average Rating</p>
-                <h2 className="text-3xl font-bold">{averageRating}/5</h2>
+                <h2 className="text-3xl font-bold">{averageRating}/10</h2>
               </div>
               <div className="p-2 bg-primary/10 rounded-full text-primary">
                 <Star className="h-5 w-5" />
@@ -660,16 +703,72 @@ export default function HODDashboard() {
       </div>
 
       <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid grid-cols-6 mb-8">
+        <TabsList className="grid grid-cols-7 mb-8">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="student-bundles">Student Bundles</TabsTrigger>
           <TabsTrigger value="subjects">Subjects</TabsTrigger>
           <TabsTrigger value="faculty">Faculty</TabsTrigger>
           <TabsTrigger value="students">Students</TabsTrigger>
           <TabsTrigger value="teachers">Teachers</TabsTrigger>
+          <TabsTrigger value="reports">Reports</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
+          {/* Filter Controls */}
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle>Filters</CardTitle>
+              <CardDescription>Filter data by batch year and section</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <Label htmlFor="batch-year-filter">Batch Year</Label>
+                  <Select value={selectedBatchYear} onValueChange={setSelectedBatchYear}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select batch year" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Batch Years</SelectItem>
+                      {batchYears.map((batch) => (
+                        <SelectItem key={batch.id} value={batch.year_range}>
+                          {batch.year_range} {batch.department}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="section-filter">Section</Label>
+                  <Select value={selectedSection} onValueChange={setSelectedSection}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select section" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Sections</SelectItem>
+                      <SelectItem value="A">Section A</SelectItem>
+                      <SelectItem value="B">Section B</SelectItem>
+                      <SelectItem value="C">Section C</SelectItem>
+                      <SelectItem value="D">Section D</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex items-end">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setSelectedBatchYear('all');
+                      setSelectedSection('all');
+                    }}
+                    className="w-full"
+                  >
+                    Clear Filters
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
@@ -752,7 +851,22 @@ export default function HODDashboard() {
                                     </button>
                                     <div>
                                       <div className="font-medium">{tf.teacherName}</div>
-                                      <div className="text-xs text-muted-foreground">{tf.subject} • Overall {tf.overallRating}/10</div>
+                                      <div className="text-xs text-muted-foreground">
+                                        {tf.subject} • Overall {tf.overallRating}/10
+                                        {tf.weightedScore && (
+                                          <span className="ml-2">
+                                            • Weighted: {tf.weightedScore.toFixed(1)}% 
+                                            <Badge 
+                                              variant={tf.gradeInterpretation === 'Excellent' ? 'default' : 
+                                                      tf.gradeInterpretation === 'Very Good' ? 'secondary' : 
+                                                      tf.gradeInterpretation === 'Good' ? 'outline' : 'destructive'}
+                                              className="ml-1 text-xs"
+                                            >
+                                              {tf.gradeInterpretation}
+                                            </Badge>
+                                          </span>
+                                        )}
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
@@ -763,7 +877,12 @@ export default function HODDashboard() {
                                       {tf.questionRatings.map((qr, qidx) => (
                                         <div key={`${qr.questionId}-${qidx}`} className="p-3 bg-muted/30 rounded border">
                                           <div className="text-xs text-muted-foreground">{qr.question}</div>
-                                          <div className="text-sm font-medium">Rating: {qr.rating}/10</div>
+                                          <div className="flex justify-between items-center mt-1">
+                                            <div className="text-sm font-medium">Rating: {qr.rating}/10</div>
+                                            <Badge variant="outline" className="text-xs">
+                                              Weight: {qr.weight}%
+                                            </Badge>
+                                          </div>
                                         </div>
                                       ))}
                                     </div>
@@ -806,7 +925,7 @@ export default function HODDashboard() {
           <Card>
             <CardHeader>
               <CardTitle>Faculty Performance</CardTitle>
-              <CardDescription>Average rating per teacher (from submissions)</CardDescription>
+              <CardDescription>Weighted scores and grade interpretation per teacher</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="border rounded-md">
@@ -817,26 +936,49 @@ export default function HODDashboard() {
                       <TableHead>Subject</TableHead>
                       <TableHead>Ratings Count</TableHead>
                       <TableHead>Average Rating</TableHead>
+                      <TableHead>Weighted Score</TableHead>
+                      <TableHead>Grade</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {(() => {
-                      const rows: { key: string; teacherName: string; subject: string; count: number; avg: number }[] = [];
-                      const map = new Map<string, { sum: number; count: number; teacherName: string; subject: string }>();
+                      const rows: { key: string; teacherName: string; subject: string; count: number; avg: number; weightedScore: number; grade: string }[] = [];
+                      const map = new Map<string, { sum: number; count: number; teacherName: string; subject: string; weightedSum: number; weightedCount: number }>();
                       feedbackData.forEach(b => {
                         b.teacherFeedbacks.forEach(tf => {
                           const key = `${tf.teacherId}|${tf.subject}`;
-                          const entry = map.get(key) || { sum: 0, count: 0, teacherName: tf.teacherName, subject: tf.subject };
+                          const entry = map.get(key) || { sum: 0, count: 0, teacherName: tf.teacherName, subject: tf.subject, weightedSum: 0, weightedCount: 0 };
                           entry.sum += typeof tf.overallRating === 'number' ? tf.overallRating : 0;
                           entry.count += 1;
+                          if (tf.weightedScore) {
+                            entry.weightedSum += tf.weightedScore;
+                            entry.weightedCount += 1;
+                          }
                           map.set(key, entry);
                         });
                       });
-                      map.forEach((v, k) => rows.push({ key: k, teacherName: v.teacherName, subject: v.subject, count: v.count, avg: v.count ? +(v.sum / v.count).toFixed(2) : 0 }));
+                      map.forEach((v, k) => {
+                        const avgWeightedScore = v.weightedCount ? +(v.weightedSum / v.weightedCount).toFixed(1) : 0;
+                        let grade = 'Needs Improvement';
+                        if (avgWeightedScore >= 90) grade = 'Excellent';
+                        else if (avgWeightedScore >= 80) grade = 'Very Good';
+                        else if (avgWeightedScore >= 70) grade = 'Good';
+                        else if (avgWeightedScore >= 60) grade = 'Average';
+                        
+                        rows.push({ 
+                          key: k, 
+                          teacherName: v.teacherName, 
+                          subject: v.subject, 
+                          count: v.count, 
+                          avg: v.count ? +(v.sum / v.count).toFixed(2) : 0,
+                          weightedScore: avgWeightedScore,
+                          grade: grade
+                        });
+                      });
                       if (rows.length === 0) {
                         return (
                           <TableRow>
-                            <TableCell colSpan={4} className="text-center py-4">No faculty ratings yet</TableCell>
+                            <TableCell colSpan={6} className="text-center py-4">No faculty ratings yet</TableCell>
                           </TableRow>
                         );
                       }
@@ -845,7 +987,19 @@ export default function HODDashboard() {
                           <TableCell>{r.teacherName}</TableCell>
                           <TableCell>{r.subject}</TableCell>
                           <TableCell>{r.count}</TableCell>
-                          <TableCell>{r.avg}</TableCell>
+                          <TableCell>{r.avg}/10</TableCell>
+                          <TableCell>
+                            <span className="font-medium text-green-600">{r.weightedScore}%</span>
+                          </TableCell>
+                          <TableCell>
+                            <Badge 
+                              variant={r.grade === 'Excellent' ? 'default' : 
+                                      r.grade === 'Very Good' ? 'secondary' : 
+                                      r.grade === 'Good' ? 'outline' : 'destructive'}
+                            >
+                              {r.grade}
+                            </Badge>
+                          </TableCell>
                         </TableRow>
                       ));
                     })()}
@@ -901,6 +1055,47 @@ export default function HODDashboard() {
                         <SelectContent>
                           <SelectItem value="A">Section A</SelectItem>
                           <SelectItem value="B">Section B</SelectItem>
+                          <SelectItem value="C">Section C</SelectItem>
+                          <SelectItem value="D">Section D</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="department">Department*</Label>
+                      <Select 
+                        value={newStudent.department || 'CSE'} 
+                        onValueChange={(value) => setNewStudent(prev => ({ ...prev, department: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select department" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {departments.map((dept) => (
+                            <SelectItem key={dept.id} value={dept.name}>
+                              {dept.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="batch_year">Batch Year*</Label>
+                      <Select 
+                        value={newStudent.batch_year || '2024-2028'} 
+                        onValueChange={(value) => setNewStudent(prev => ({ ...prev, batch_year: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select batch year" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {batchYears.map((batch) => (
+                            <SelectItem key={batch.id} value={batch.year_range}>
+                              {batch.year_range} {batch.department}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -1046,6 +1241,8 @@ export default function HODDashboard() {
                         <TableHead>Reg. Number</TableHead>
                         <TableHead>Name</TableHead>
                         <TableHead>Section</TableHead>
+                        <TableHead>Department</TableHead>
+                        <TableHead>Batch Year</TableHead>
                         <TableHead>DOB</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
@@ -1057,6 +1254,8 @@ export default function HODDashboard() {
                             <TableCell>{student.reg_number}</TableCell>
                             <TableCell>{student.name}</TableCell>
                             <TableCell>Section {student.section}</TableCell>
+                            <TableCell>{student.department || 'N/A'}</TableCell>
+                            <TableCell>{student.batch_year || 'N/A'}</TableCell>
                             <TableCell>{student.dob}</TableCell>
                             <TableCell>
                               <div className="flex gap-2">
@@ -1072,7 +1271,7 @@ export default function HODDashboard() {
                         ))
                       ) : (
                         <TableRow>
-                          <TableCell colSpan={4} className="text-center py-4">
+                          <TableCell colSpan={7} className="text-center py-4">
                             No students found
                           </TableCell>
                         </TableRow>
@@ -1265,6 +1464,15 @@ export default function HODDashboard() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        {/* Reports Tab */}
+        <TabsContent value="reports">
+          <ReportGenerator 
+            userRole="hod" 
+            userDepartment={user?.department}
+            onReportGenerated={loadDashboardData}
+          />
         </TabsContent>
       </Tabs>
 

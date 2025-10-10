@@ -17,10 +17,19 @@ class Section(str, Enum):
     C = "C"
     D = "D"
 
+class GradeInterpretation(str, Enum):
+    EXCELLENT = "Excellent"
+    VERY_GOOD = "Very Good"
+    GOOD = "Good"
+    AVERAGE = "Average"
+    NEEDS_IMPROVEMENT = "Needs Improvement"
+
 # Base Models
 class BaseDocument(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     created_at: datetime = Field(default_factory=lambda: datetime.now())
+    is_active: bool = True
+    deleted_at: Optional[datetime] = None
     updated_at: datetime = Field(default_factory=lambda: datetime.now())
 
 # Admin/Authentication Models
@@ -31,6 +40,7 @@ class Admin(BaseDocument):
     role: UserRole
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
+    department: Optional[str] = None  # For HODs
     
     @field_validator('phone')
     @classmethod
@@ -46,18 +56,26 @@ class AdminCreate(BaseModel):
     role: UserRole
     email: Optional[EmailStr] = None
     phone: Optional[str] = None
+    department: Optional[str] = None  # For HODs
     
     @field_validator('password')
     @classmethod
     def validate_password(cls, v):
-        if len(v) < 8:
-            raise ValueError('Password must be at least 8 characters long')
+        if len(v) < 12:
+            raise ValueError('Password must be at least 12 characters long')
         if not re.search(r'[A-Z]', v):
             raise ValueError('Password must contain at least one uppercase letter')
         if not re.search(r'[a-z]', v):
             raise ValueError('Password must contain at least one lowercase letter')
         if not re.search(r'\d', v):
             raise ValueError('Password must contain at least one digit')
+        if not re.search(r'[!@#$%^&*(),.?":{}|<>]', v):
+            raise ValueError('Password must contain at least one special character')
+        # Check for common weak patterns
+        if re.search(r'(.)\1{2,}', v):
+            raise ValueError('Password cannot contain more than 2 consecutive identical characters')
+        if re.search(r'(123|abc|qwe|asd|zxc)', v.lower()):
+            raise ValueError('Password cannot contain common sequences')
         return v
     
     @field_validator('phone')
@@ -71,6 +89,33 @@ class AdminLogin(BaseModel):
     username: str
     password: str
 
+class PasswordResetRequest(BaseModel):
+    email: EmailStr
+
+class PasswordReset(BaseModel):
+    token: str
+    new_password: str
+    
+    @field_validator('new_password')
+    @classmethod
+    def validate_password(cls, v):
+        if len(v) < 12:
+            raise ValueError('Password must be at least 12 characters long')
+        if not re.search(r'[A-Z]', v):
+            raise ValueError('Password must contain at least one uppercase letter')
+        if not re.search(r'[a-z]', v):
+            raise ValueError('Password must contain at least one lowercase letter')
+        if not re.search(r'\d', v):
+            raise ValueError('Password must contain at least one digit')
+        if not re.search(r'[!@#$%^&*(),.?":{}|<>]', v):
+            raise ValueError('Password must contain at least one special character')
+        # Check for common weak patterns
+        if re.search(r'(.)\1{2,}', v):
+            raise ValueError('Password cannot contain more than 2 consecutive identical characters')
+        if re.search(r'(123|abc|qwe|asd|zxc)', v.lower()):
+            raise ValueError('Password cannot contain common sequences')
+        return v
+
 # Student Models
 class Student(BaseDocument):
     reg_number: str = Field(..., min_length=5, max_length=20)
@@ -81,6 +126,8 @@ class Student(BaseDocument):
     phone: Optional[str] = None
     year: Optional[str] = None
     branch: Optional[str] = None
+    department: str = Field(..., min_length=2, max_length=50)  # Required field
+    batch_year: str = Field(..., min_length=9, max_length=9)  # Format: "2024-2028"
     is_active: bool = True
     
     @field_validator('reg_number')
@@ -116,6 +163,13 @@ class Student(BaseDocument):
         if v and not re.match(r'^\+?[\d\s\-\(\)]{10,15}$', v):
             raise ValueError('Invalid phone number format')
         return v
+    
+    @field_validator('batch_year')
+    @classmethod
+    def validate_batch_year(cls, v):
+        if not re.match(r'^\d{4}-\d{4}$', v):
+            raise ValueError('Batch year must be in format YYYY-YYYY (e.g., 2024-2028)')
+        return v
 
 class StudentCreate(BaseModel):
     reg_number: str
@@ -126,6 +180,8 @@ class StudentCreate(BaseModel):
     phone: Optional[str] = None
     year: Optional[str] = None
     branch: Optional[str] = None
+    department: str
+    batch_year: str
 
 class StudentLogin(BaseModel):
     reg_number: str
@@ -142,7 +198,7 @@ class Faculty(BaseDocument):
     sections: List[Section]
     email: Optional[str] = None
     phone: Optional[str] = None
-    department: Optional[str] = None
+    department: str = Field(..., min_length=2, max_length=50)  # Required field
     designation: Optional[str] = None
     is_active: bool = True
     
@@ -160,42 +216,84 @@ class FacultyCreate(BaseModel):
     sections: List[Section]
     email: Optional[str] = None
     phone: Optional[str] = None
-    department: Optional[str] = None
+    department: str
     designation: Optional[str] = None
 
 class FacultyImport(BaseModel):
     faculty: List[FacultyCreate]
 
+# Department and Batch Year Models
+class Department(BaseDocument):
+    name: str = Field(..., min_length=2, max_length=100)
+    code: str = Field(..., min_length=2, max_length=10)
+    description: Optional[str] = None
+    hod_id: Optional[str] = None  # Reference to Admin ID
+    is_active: bool = True
+    
+    @field_validator('code')
+    @classmethod
+    def validate_code(cls, v):
+        if not v or len(v.strip()) == 0:
+            raise ValueError('Department code cannot be empty')
+        return v.strip().upper()
+
+class DepartmentCreate(BaseModel):
+    name: str = Field(..., min_length=2, max_length=100)
+    code: str = Field(..., min_length=2, max_length=10)
+    description: Optional[str] = None
+
+class BatchYear(BaseDocument):
+    year_range: str = Field(..., min_length=9, max_length=9)  # Format: "2024-2028"
+    department: str = Field(..., min_length=2, max_length=50)
+    sections: List[Section] = Field(default_factory=list)
+    is_active: bool = True
+    
+    @field_validator('year_range')
+    @classmethod
+    def validate_year_range(cls, v):
+        if not re.match(r'^\d{4}-\d{4}$', v):
+            raise ValueError('Year range must be in format YYYY-YYYY (e.g., 2024-2028)')
+        return v
+
+class BatchYearCreate(BaseModel):
+    year_range: str = Field(..., min_length=9, max_length=9)
+    department: str = Field(..., min_length=2, max_length=50)
+    sections: List[Section] = Field(default_factory=list)
+
 # Feedback Models
 class QuestionRating(BaseModel):
     question_id: str
     question: str
-    rating: int = Field(ge=1, le=5)  # Rating between 1-5
+    rating: int = Field(ge=1, le=10)  # Rating between 1-10
+    weight: float = Field(ge=0, le=100)  # Weight percentage (0-100)
 
 class IndividualFeedback(BaseModel):
     faculty_id: str
     faculty_name: str
     subject: str
     question_ratings: List[QuestionRating]
-    overall_rating: float = Field(ge=1.0, le=5.0)
+    overall_rating: float = Field(ge=1.0, le=10.0)
+    weighted_score: float = Field(ge=0.0, le=100.0)  # Overall weighted percentage
+    grade_interpretation: GradeInterpretation
     detailed_feedback: Optional[str] = None
     suggestions: Optional[str] = None
 
 class FeedbackSubmission(BaseDocument):
     student_section: Section
-    semester: Optional[str] = None
-    academic_year: Optional[str] = None
+    semester: str = Field(..., min_length=1, max_length=20)  # Required field
+    academic_year: str = Field(..., min_length=4, max_length=10)  # Required field
     faculty_feedbacks: List[IndividualFeedback]
     submitted_at: datetime = Field(default_factory=datetime.utcnow)
     is_anonymous: bool = True
+    student_id: Optional[str] = None  # For tracking (optional for anonymity)
     
     # Anonymous identifier for tracking without revealing identity
     anonymous_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
 
 class FeedbackCreate(BaseModel):
     student_section: Section
-    semester: Optional[str] = None
-    academic_year: Optional[str] = None
+    semester: str = Field(..., min_length=1, max_length=20)
+    academic_year: str = Field(..., min_length=4, max_length=10)
     faculty_feedbacks: List[IndividualFeedback]
 
 # Dashboard Analytics Models
@@ -238,6 +336,8 @@ class StudentResponse(BaseModel):
     email: Optional[str] = None
     year: Optional[str] = None
     branch: Optional[str] = None
+    department: Optional[str] = None
+    batch_year: Optional[str] = None
 
 class FacultyResponse(BaseModel):
     id: str
@@ -254,6 +354,36 @@ class LoginResponse(BaseModel):
     message: str
     role: UserRole
 
+# Report Models
+class GeneratedReport(BaseDocument):
+    report_name: str
+    department: str
+    batch_year: str
+    section: Section
+    generated_by: str  # Admin ID
+    report_type: str  # csv/pdf/excel
+    file_path: Optional[str] = None
+    file_data: Optional[bytes] = None
+    metadata: Dict[str, Any] = Field(default_factory=dict)  # faculty_count, feedback_count, etc.
+    is_active: bool = True
+
+class ReportGenerateRequest(BaseModel):
+    department: str
+    batch_year: str
+    section: Section
+    format: str = Field(..., regex="^(csv|pdf|excel)$")
+
+class ReportHistoryResponse(BaseModel):
+    id: str
+    report_name: str
+    department: str
+    batch_year: str
+    section: Section
+    generated_by: str
+    generated_at: datetime
+    report_type: str
+    metadata: Dict[str, Any]
+
 # Utility Models
 class ImportResult(BaseModel):
     success_count: int
@@ -267,3 +397,102 @@ class APIResponse(BaseModel):
     message: str
     data: Optional[Any] = None
     error: Optional[str] = None
+
+# Weighted Feedback Questions
+FEEDBACK_QUESTIONS = [
+    {
+        "id": "punctuality",
+        "question": "Punctuality",
+        "weight": 10.0,
+        "category": "Professionalism"
+    },
+    {
+        "id": "voice_clarity",
+        "question": "Voice Clarity and Audibility",
+        "weight": 10.0,
+        "category": "Communication"
+    },
+    {
+        "id": "blackboard_usage",
+        "question": "Usage of Blackboard and Legibility of Handwriting on the Board",
+        "weight": 10.0,
+        "category": "Teaching Method"
+    },
+    {
+        "id": "student_interaction",
+        "question": "Interaction with Students and Clarification of Doubts During the Class",
+        "weight": 15.0,
+        "category": "Student Engagement"
+    },
+    {
+        "id": "class_inspiring",
+        "question": "Making the Class Inspiring and Interesting",
+        "weight": 15.0,
+        "category": "Teaching Quality"
+    },
+    {
+        "id": "discipline_maintenance",
+        "question": "Maintenance of Discipline in the Classroom",
+        "weight": 10.0,
+        "category": "Classroom Management"
+    },
+    {
+        "id": "availability_outside",
+        "question": "Availability in the Campus Outside the Classroom",
+        "weight": 5.0,
+        "category": "Accessibility"
+    },
+    {
+        "id": "syllabus_coverage",
+        "question": "Rate of Syllabus Coverage",
+        "weight": 10.0,
+        "category": "Curriculum"
+    },
+    {
+        "id": "paper_analysis",
+        "question": "Analysis of Mid Papers & University Papers in the Class",
+        "weight": 10.0,
+        "category": "Assessment"
+    },
+    {
+        "id": "question_bank",
+        "question": "Giving Question Bank and Necessary Material",
+        "weight": 5.0,
+        "category": "Resources"
+    }
+]
+
+def calculate_weighted_score(question_ratings: List[QuestionRating]) -> tuple[float, GradeInterpretation]:
+    """Calculate weighted score and grade interpretation from question ratings"""
+    if not question_ratings:
+        return 0.0, GradeInterpretation.NEEDS_IMPROVEMENT
+    
+    total_weighted_score = 0.0
+    total_weight = 0.0
+    
+    for rating in question_ratings:
+        # Convert 1-10 scale to percentage and apply weight
+        score_percentage = (rating.rating / 10.0) * 100
+        weighted_score = score_percentage * (rating.weight / 100.0)
+        total_weighted_score += weighted_score
+        total_weight += rating.weight
+    
+    # Normalize by total weight if it doesn't equal 100%
+    if total_weight > 0:
+        final_score = (total_weighted_score / total_weight) * 100
+    else:
+        final_score = 0.0
+    
+    # Determine grade interpretation
+    if final_score >= 90:
+        grade = GradeInterpretation.EXCELLENT
+    elif final_score >= 80:
+        grade = GradeInterpretation.VERY_GOOD
+    elif final_score >= 70:
+        grade = GradeInterpretation.GOOD
+    elif final_score >= 60:
+        grade = GradeInterpretation.AVERAGE
+    else:
+        grade = GradeInterpretation.NEEDS_IMPROVEMENT
+    
+    return round(final_score, 2), grade

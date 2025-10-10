@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Teacher, IndividualFeedback, FEEDBACK_QUESTIONS, QuestionRating } from "@/types/feedback";
+import { Teacher, IndividualFeedback, FEEDBACK_QUESTIONS, QuestionRating, calculateWeightedScore } from "@/types/feedback";
 import { Star, MessageSquare, Lightbulb } from "lucide-react";
 import { toast } from "sonner";
 
@@ -27,7 +27,7 @@ const TeacherFeedbackModal = ({
 }: TeacherFeedbackModalProps) => {
   const [questionRatings, setQuestionRatings] = useState<QuestionRating[]>(
     existingFeedback?.questionRatings || 
-    FEEDBACK_QUESTIONS.map(q => ({ questionId: q.id, question: q.question, rating: 7 }))
+    FEEDBACK_QUESTIONS.map(q => ({ questionId: q.id, question: q.question, rating: 7, weight: q.weight }))
   );
   const [detailedFeedback, setDetailedFeedback] = useState(existingFeedback?.detailedFeedback || '');
   const [suggestions, setSuggestions] = useState(existingFeedback?.suggestions || '');
@@ -47,6 +47,10 @@ const TeacherFeedbackModal = ({
     return Math.round(total / questionRatings.length * 10) / 10;
   };
 
+  const calculateWeightedScoreAndGrade = () => {
+    return calculateWeightedScore(questionRatings);
+  };
+
   const handleSave = () => {
     if (!suggestions.trim() || suggestions.length < 10) {
       toast.error('Please provide suggestions (minimum 10 characters)');
@@ -60,12 +64,16 @@ const TeacherFeedbackModal = ({
       return;
     }
 
+    const { score, grade } = calculateWeightedScoreAndGrade();
+    
     const feedbackData: IndividualFeedback = {
       teacherId: teacher.id,
       teacherName: teacher.name,
       subject: teacher.subject,
       questionRatings,
       overallRating: calculateOverallRating(),
+      weightedScore: score,
+      gradeInterpretation: grade,
       detailedFeedback: detailedFeedback.trim() || undefined,
       suggestions: suggestions.trim()
     };
@@ -98,6 +106,12 @@ const TeacherFeedbackModal = ({
           <div className="flex items-center space-x-4 text-sm text-muted-foreground">
             <span>Subject: {teacher.subject}</span>
             <Badge variant="outline">Overall: {overallRating}/10</Badge>
+            <Badge variant="secondary">Weighted: {calculateWeightedScoreAndGrade().score.toFixed(1)}%</Badge>
+            <Badge variant={calculateWeightedScoreAndGrade().grade === 'Excellent' ? 'default' : 
+                           calculateWeightedScoreAndGrade().grade === 'Very Good' ? 'secondary' : 
+                           calculateWeightedScoreAndGrade().grade === 'Good' ? 'outline' : 'destructive'}>
+              {calculateWeightedScoreAndGrade().grade}
+            </Badge>
           </div>
         </DialogHeader>
 
@@ -121,9 +135,14 @@ const TeacherFeedbackModal = ({
                         <Label className="text-sm font-medium">
                           {index + 1}. {question.question}
                         </Label>
-                        <Badge variant="secondary" className="ml-2 text-xs">
-                          {question.category}
-                        </Badge>
+                        <div className="flex gap-2 mt-1">
+                          <Badge variant="secondary" className="text-xs">
+                            {question.category}
+                          </Badge>
+                          <Badge variant="outline" className="text-xs">
+                            Weight: {question.weight}%
+                          </Badge>
+                        </div>
                       </div>
                       <div className="text-right">
                         <span className="text-lg font-semibold text-primary">
@@ -157,13 +176,33 @@ const TeacherFeedbackModal = ({
           {/* Overall Rating Display */}
           <Card className="bg-primary/5 border-primary/20">
             <CardContent className="pt-6">
-              <div className="text-center">
-                <div className="text-3xl font-bold text-primary mb-2">
-                  {overallRating}/10
+              <div className="text-center space-y-4">
+                <div className="flex justify-center space-x-6">
+                  <div>
+                    <div className="text-3xl font-bold text-primary mb-2">
+                      {overallRating}/10
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Overall Rating
+                    </p>
+                  </div>
+                  <div>
+                    <div className="text-3xl font-bold text-green-600 mb-2">
+                      {calculateWeightedScoreAndGrade().score.toFixed(1)}%
+                    </div>
+                    <p className="text-sm text-muted-foreground">
+                      Weighted Score
+                    </p>
+                  </div>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  Overall Rating (Average of all questions)
-                </p>
+                <div className="flex justify-center">
+                  <Badge variant={calculateWeightedScoreAndGrade().grade === 'Excellent' ? 'default' : 
+                                 calculateWeightedScoreAndGrade().grade === 'Very Good' ? 'secondary' : 
+                                 calculateWeightedScoreAndGrade().grade === 'Good' ? 'outline' : 'destructive'}
+                         className="text-lg px-4 py-2">
+                    {calculateWeightedScoreAndGrade().grade}
+                  </Badge>
+                </div>
               </div>
             </CardContent>
           </Card>
