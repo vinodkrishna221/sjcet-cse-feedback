@@ -371,8 +371,12 @@ class AdvancedIndexManager:
         await collection.create_index([("student_section", ASCENDING), ("semester", ASCENDING), ("submitted_at", DESCENDING)])
         await collection.create_index([("faculty_feedbacks.faculty_id", ASCENDING), ("semester", ASCENDING), ("academic_year", ASCENDING)])
         
-        # Unique constraint indexes
-        await collection.create_index([("student_id", ASCENDING), ("semester", ASCENDING), ("academic_year", ASCENDING)], unique=True)
+        # Unique constraint indexes - exclude null student_id values
+        await collection.create_index(
+            [("student_id", ASCENDING), ("semester", ASCENDING), ("academic_year", ASCENDING)], 
+            unique=True,
+            partialFilterExpression={"student_id": {"$ne": None}}
+        )
         await collection.create_index([("anonymous_id", ASCENDING)], unique=True)
         
         # Single field indexes

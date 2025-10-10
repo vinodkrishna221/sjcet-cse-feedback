@@ -52,7 +52,11 @@ class QueryOptimizer:
                 else:
                     raise
             
-            await self.db.feedback_submissions.create_index([("student_id", ASCENDING), ("semester", ASCENDING), ("academic_year", ASCENDING)], unique=True)
+            await self.db.feedback_submissions.create_index(
+                [("student_id", ASCENDING), ("semester", ASCENDING), ("academic_year", ASCENDING)], 
+                unique=True,
+                partialFilterExpression={"student_id": {"$ne": None}}
+            )
             
             # Faculty feedbacks compound index
             await self.db.feedback_submissions.create_index([("faculty_feedbacks.faculty_id", ASCENDING)])

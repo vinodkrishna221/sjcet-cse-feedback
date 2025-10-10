@@ -51,6 +51,8 @@ const FeedbackForm = () => {
       // Prepare feedback data for backend schema (FeedbackCreate)
       const feedbackData = {
         student_section: user?.section,
+        semester: "1", // Default semester - should be configurable
+        academic_year: "2024-2025", // Default academic year - should be configurable
         faculty_feedbacks: Object.values(teacherFeedbacks).map(tf => ({
           faculty_id: tf.teacherId,
           faculty_name: tf.teacherName,
