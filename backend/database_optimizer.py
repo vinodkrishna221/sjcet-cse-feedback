@@ -297,129 +297,201 @@ class AdvancedIndexManager:
         """Create all performance-optimized indexes"""
         try:
             await self._create_student_indexes()
+            logger.info("Student indexes created successfully")
         except Exception as e:
             logger.error(f"Error creating student indexes: {e}")
         
         try:
             await self._create_faculty_indexes()
+            logger.info("Faculty indexes created successfully")
         except Exception as e:
             logger.error(f"Error creating faculty indexes: {e}")
         
         try:
             await self._create_feedback_indexes()
+            logger.info("Feedback indexes created successfully")
         except Exception as e:
             logger.error(f"Error creating feedback indexes: {e}")
         
         try:
             await self._create_admin_indexes()
+            logger.info("Admin indexes created successfully")
         except Exception as e:
             logger.error(f"Error creating admin indexes: {e}")
         
         try:
             await self._create_materialized_view_indexes()
+            logger.info("Materialized view indexes created successfully")
         except Exception as e:
             logger.error(f"Error creating materialized view indexes: {e}")
         
-        logger.info("Performance indexes creation completed (with possible warnings)")
+        logger.info("Performance indexes creation completed")
     
     async def _create_student_indexes(self):
         """Create optimized indexes for students collection"""
         collection = self.db.students
         
-        # Compound indexes for common queries
-        await collection.create_index([("section", ASCENDING), ("batch_year", ASCENDING), ("is_active", ASCENDING)])
-        await collection.create_index([("department", ASCENDING), ("section", ASCENDING), ("is_active", ASCENDING)])
-        await collection.create_index([("batch_year", ASCENDING), ("department", ASCENDING), ("is_active", ASCENDING)])
-        
-        # Text search indexes
-        await collection.create_index([("name", TEXT), ("reg_number", TEXT)])
-        
-        # Single field indexes
-        await collection.create_index([("is_active", ASCENDING)])
-        await collection.create_index([("created_at", DESCENDING)])
-        await collection.create_index([("updated_at", DESCENDING)])
-        
-        # Partial indexes for active students only
-        await collection.create_index([("section", ASCENDING)], partialFilterExpression={"is_active": True})
-        await collection.create_index([("batch_year", ASCENDING)], partialFilterExpression={"is_active": True})
+        try:
+            # Compound indexes for common queries
+            await collection.create_index([("section", ASCENDING), ("batch_year", ASCENDING), ("is_active", ASCENDING)])
+            await collection.create_index([("department", ASCENDING), ("section", ASCENDING), ("is_active", ASCENDING)])
+            await collection.create_index([("batch_year", ASCENDING), ("department", ASCENDING), ("is_active", ASCENDING)])
+            
+            # Text search indexes
+            await collection.create_index([("name", TEXT), ("reg_number", TEXT)])
+            
+            # Single field indexes
+            await collection.create_index([("is_active", ASCENDING)])
+            await collection.create_index([("created_at", DESCENDING)])
+            await collection.create_index([("updated_at", DESCENDING)])
+            
+            # Partial indexes for active students only
+            await collection.create_index([("section", ASCENDING)], partialFilterExpression={"is_active": True})
+            await collection.create_index([("batch_year", ASCENDING)], partialFilterExpression={"is_active": True})
+        except Exception as e:
+            if "Index already exists" in str(e):
+                logger.warning("Some student indexes already exist, skipping creation")
+            else:
+                raise
     
     async def _create_faculty_indexes(self):
         """Create optimized indexes for faculty collection"""
         collection = self.db.faculty
         
-        # Compound indexes
-        await collection.create_index([("department", ASCENDING), ("is_active", ASCENDING)])
-        await collection.create_index([("subjects", ASCENDING), ("is_active", ASCENDING)])
-        
-        # Text search indexes
-        await collection.create_index([("name", TEXT)])
-        
-        # Single field indexes
-        await collection.create_index([("is_active", ASCENDING)])
-        await collection.create_index([("created_at", DESCENDING)])
-        await collection.create_index([("updated_at", DESCENDING)])
-        
-        # Partial indexes for active faculty only
-        await collection.create_index([("department", ASCENDING)], partialFilterExpression={"is_active": True})
+        try:
+            # Compound indexes
+            await collection.create_index([("department", ASCENDING), ("is_active", ASCENDING)])
+            await collection.create_index([("subjects", ASCENDING), ("is_active", ASCENDING)])
+            
+            # Text search indexes
+            await collection.create_index([("name", TEXT)])
+            
+            # Single field indexes
+            await collection.create_index([("is_active", ASCENDING)])
+            await collection.create_index([("created_at", DESCENDING)])
+            await collection.create_index([("updated_at", DESCENDING)])
+            
+            # Partial indexes for active faculty only
+            await collection.create_index([("department", ASCENDING)], partialFilterExpression={"is_active": True})
+        except Exception as e:
+            if "Index already exists" in str(e):
+                logger.warning("Some faculty indexes already exist, skipping creation")
+            else:
+                raise
     
     async def _create_feedback_indexes(self):
         """Create optimized indexes for feedback submissions collection"""
         collection = self.db.feedback_submissions
         
-        # Compound indexes for analytics queries
-        await collection.create_index([("semester", ASCENDING), ("academic_year", ASCENDING), ("student_section", ASCENDING)])
-        await collection.create_index([("student_section", ASCENDING), ("semester", ASCENDING), ("submitted_at", DESCENDING)])
-        await collection.create_index([("faculty_feedbacks.faculty_id", ASCENDING), ("semester", ASCENDING), ("academic_year", ASCENDING)])
-        
-        # Unique constraint indexes - exclude null student_id values
-        await collection.create_index(
-            [("student_id", ASCENDING), ("semester", ASCENDING), ("academic_year", ASCENDING)], 
-            unique=True,
-            partialFilterExpression={"student_id": {"$exists": True}}
-        )
-        await collection.create_index([("anonymous_id", ASCENDING)], unique=True, name="idx_anonymous_id_unique")
-        
-        # Single field indexes
-        await collection.create_index([("submitted_at", DESCENDING)], name="idx_submitted_at_desc")
-        await collection.create_index([("is_anonymous", ASCENDING)])
-        
-        # Partial indexes for recent feedback
-        await collection.create_index(
-            [("submitted_at", DESCENDING)], 
-            partialFilterExpression={"submitted_at": {"$gte": datetime.now() - timedelta(days=365)}},
-            name="idx_submitted_at_recent"
-        )
+        try:
+            # Compound indexes for analytics queries
+            await collection.create_index([("semester", ASCENDING), ("academic_year", ASCENDING), ("student_section", ASCENDING)])
+            await collection.create_index([("student_section", ASCENDING), ("semester", ASCENDING), ("submitted_at", DESCENDING)])
+            await collection.create_index([("faculty_feedbacks.faculty_id", ASCENDING), ("semester", ASCENDING), ("academic_year", ASCENDING)])
+            
+            # Unique constraint indexes - exclude null student_id values
+            await collection.create_index(
+                [("student_id", ASCENDING), ("semester", ASCENDING), ("academic_year", ASCENDING)], 
+                unique=True,
+                partialFilterExpression={"student_id": {"$exists": True}}
+            )
+            
+            # Handle anonymous_id index creation carefully
+            await self._create_anonymous_id_index(collection)
+            
+            # Single field indexes
+            await collection.create_index([("submitted_at", DESCENDING)], name="idx_submitted_at_desc")
+            await collection.create_index([("is_anonymous", ASCENDING)])
+            
+            # Partial indexes for recent feedback
+            await collection.create_index(
+                [("submitted_at", DESCENDING)], 
+                partialFilterExpression={"submitted_at": {"$gte": datetime.now() - timedelta(days=365)}},
+                name="idx_submitted_at_recent"
+            )
+        except Exception as e:
+            logger.error(f"Error creating feedback indexes: {e}")
+            raise
     
+    async def _create_anonymous_id_index(self, collection):
+        """Create anonymous_id index with conflict handling"""
+        try:
+            # Check if anonymous_id index already exists
+            existing_indexes = await collection.list_indexes().to_list(None)
+            anonymous_id_index_exists = any(
+                index.get("key", {}).get("anonymous_id") is not None 
+                for index in existing_indexes
+            )
+            
+            if not anonymous_id_index_exists:
+                # Create new unique index
+                await collection.create_index([("anonymous_id", ASCENDING)], unique=True, name="idx_anonymous_id_unique")
+                logger.info("Created anonymous_id unique index")
+            else:
+                # Check if existing index is unique
+                existing_anonymous_index = next(
+                    (index for index in existing_indexes 
+                     if index.get("key", {}).get("anonymous_id") is not None), 
+                    None
+                )
+                
+                if existing_anonymous_index and not existing_anonymous_index.get("unique", False):
+                    # Drop existing non-unique index and create unique one
+                    await collection.drop_index(existing_anonymous_index["name"])
+                    await collection.create_index([("anonymous_id", ASCENDING)], unique=True, name="idx_anonymous_id_unique")
+                    logger.info("Replaced existing anonymous_id index with unique constraint")
+                else:
+                    logger.info("Anonymous_id unique index already exists")
+                    
+        except Exception as e:
+            if "Index already exists with a different name" in str(e):
+                logger.warning("Anonymous_id index already exists with different name, skipping creation")
+            else:
+                logger.error(f"Error creating anonymous_id index: {e}")
+                raise
+
     async def _create_admin_indexes(self):
         """Create optimized indexes for admins collection"""
         collection = self.db.admins
         
-        # Compound indexes
-        await collection.create_index([("role", ASCENDING), ("is_active", ASCENDING)])
-        await collection.create_index([("department", ASCENDING), ("is_active", ASCENDING)])
-        
-        # Single field indexes
-        await collection.create_index([("is_active", ASCENDING)])
-        await collection.create_index([("created_at", DESCENDING)])
+        try:
+            # Compound indexes
+            await collection.create_index([("role", ASCENDING), ("is_active", ASCENDING)])
+            await collection.create_index([("department", ASCENDING), ("is_active", ASCENDING)])
+            
+            # Single field indexes
+            await collection.create_index([("is_active", ASCENDING)])
+            await collection.create_index([("created_at", DESCENDING)])
+        except Exception as e:
+            if "Index already exists" in str(e):
+                logger.warning("Some admin indexes already exist, skipping creation")
+            else:
+                raise
     
     async def _create_materialized_view_indexes(self):
         """Create indexes for materialized views"""
-        # Feedback summary MV indexes
-        feedback_summary = self.db.feedback_summary_mv
-        await feedback_summary.create_index([("faculty_id", ASCENDING), ("semester", ASCENDING), ("academic_year", ASCENDING)])
-        await feedback_summary.create_index([("section", ASCENDING), ("semester", ASCENDING)])
-        await feedback_summary.create_index([("department", ASCENDING), ("semester", ASCENDING)])
-        
-        # Student stats MV indexes
-        student_stats = self.db.student_stats_mv
-        await student_stats.create_index([("section", ASCENDING), ("batch_year", ASCENDING)])
-        await student_stats.create_index([("department", ASCENDING)])
-        
-        # Faculty performance MV indexes
-        faculty_performance = self.db.faculty_performance_mv
-        await faculty_performance.create_index([("faculty_id", ASCENDING)])
-        await faculty_performance.create_index([("department", ASCENDING)])
-        await faculty_performance.create_index([("performance_score", DESCENDING)])
+        try:
+            # Feedback summary MV indexes
+            feedback_summary = self.db.feedback_summary_mv
+            await feedback_summary.create_index([("faculty_id", ASCENDING), ("semester", ASCENDING), ("academic_year", ASCENDING)])
+            await feedback_summary.create_index([("section", ASCENDING), ("semester", ASCENDING)])
+            await feedback_summary.create_index([("department", ASCENDING), ("semester", ASCENDING)])
+            
+            # Student stats MV indexes
+            student_stats = self.db.student_stats_mv
+            await student_stats.create_index([("section", ASCENDING), ("batch_year", ASCENDING)])
+            await student_stats.create_index([("department", ASCENDING)])
+            
+            # Faculty performance MV indexes
+            faculty_performance = self.db.faculty_performance_mv
+            await faculty_performance.create_index([("faculty_id", ASCENDING)])
+            await faculty_performance.create_index([("department", ASCENDING)])
+            await faculty_performance.create_index([("performance_score", DESCENDING)])
+        except Exception as e:
+            if "Index already exists" in str(e):
+                logger.warning("Some materialized view indexes already exist, skipping creation")
+            else:
+                raise
     
     async def analyze_query_performance(self, collection_name: str, query: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze query performance and suggest optimizations"""
