@@ -2,17 +2,40 @@
 Draft management routes for feedback forms
 """
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import Optional, Dict, Any
 from datetime import datetime, timedelta
 import logging
 
-from auth import get_current_student, get_current_admin
+from auth import AuthService
 from database import DatabaseOperations
 from models import APIResponse
 from middleware import rate_limit_middleware
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+security = HTTPBearer()
+
+async def get_current_student(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Dependency to get current student user"""
+    student = await AuthService.get_current_student(credentials.credentials)
+    if not student:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials"
+        )
+    return student
+
+async def get_current_admin(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Dependency to get current admin user"""
+    admin = await AuthService.get_current_admin(credentials.credentials)
+    if not admin or admin.role not in ["hod", "principal"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Not authorized - admin access required"
+        )
+    return admin
 
 @router.post("/save-draft", response_model=APIResponse)
 async def save_draft(
