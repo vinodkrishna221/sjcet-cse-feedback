@@ -234,7 +234,12 @@ async def startup_db_client():
         await AuthHelpers.initialize_admin_accounts()
         
         # Initialize performance optimization services
-        await cache_service.connect()
+        # Make cache service optional
+        try:
+            await cache_service.connect()
+        except Exception as e:
+            logger.warning(f"Cache service unavailable: {e}. Continuing without caching.")
+        
         await initialize_query_optimization(get_database())
         await initialize_database_optimization(get_database())
         initialize_monitoring(get_database(), cache_service)

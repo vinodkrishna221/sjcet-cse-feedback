@@ -37,8 +37,13 @@ class CacheService:
             await self.redis_client.ping()
             logger.info("Redis connection established successfully")
         except Exception as e:
-            logger.error(f"Failed to connect to Redis: {e}")
-            raise
+            logger.warning(f"Failed to connect to Redis: {e}. Continuing without cache.")
+            self.redis_client = None
+            # Don't raise - allow application to continue without Redis
+    
+    def is_connected(self) -> bool:
+        """Check if Redis is connected"""
+        return self.redis_client is not None
     
     async def disconnect(self):
         """Close Redis connection"""
@@ -49,10 +54,10 @@ class CacheService:
     
     async def get(self, key: str) -> Optional[Any]:
         """Get value from cache"""
-        try:
-            if not self.redis_client:
-                return None
+        if not self.is_connected():
+            return None
             
+        try:
             value = await self.redis_client.get(key)
             if value is None:
                 return None
@@ -74,10 +79,10 @@ class CacheService:
         serialize_method: str = "json"
     ) -> bool:
         """Set value in cache with optional expiration"""
-        try:
-            if not self.redis_client:
-                return False
+        if not self.is_connected():
+            return True
             
+        try:
             # Serialize value
             if serialize_method == "json":
                 serialized_value = json.dumps(value, default=str)
@@ -97,10 +102,10 @@ class CacheService:
     
     async def delete(self, key: str) -> bool:
         """Delete key from cache"""
-        try:
-            if not self.redis_client:
-                return False
+        if not self.is_connected():
+            return True
             
+        try:
             result = await self.redis_client.delete(key)
             return result > 0
         except Exception as e:
