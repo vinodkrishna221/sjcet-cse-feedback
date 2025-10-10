@@ -40,7 +40,18 @@ class QueryOptimizer:
             await self.db.feedback_submissions.create_index([("student_section", ASCENDING), ("semester", ASCENDING)])
             await self.db.feedback_submissions.create_index([("semester", ASCENDING), ("academic_year", ASCENDING)])
             await self.db.feedback_submissions.create_index([("submitted_at", DESCENDING)])
-            await self.db.feedback_submissions.create_index([("anonymous_id", ASCENDING)], unique=True)
+            
+            # Handle anonymous_id index - drop if exists and recreate
+            try:
+                await self.db.feedback_submissions.create_index([("anonymous_id", ASCENDING)], unique=True)
+            except Exception as e:
+                if 'IndexKeySpecsConflict' in str(e) or getattr(e, 'code', None) == 86:
+                    logger.warning(f"Dropping existing anonymous_id index to recreate as unique")
+                    await self.db.feedback_submissions.drop_index("anonymous_id_1")
+                    await self.db.feedback_submissions.create_index([("anonymous_id", ASCENDING)], unique=True)
+                else:
+                    raise
+            
             await self.db.feedback_submissions.create_index([("student_id", ASCENDING), ("semester", ASCENDING), ("academic_year", ASCENDING)], unique=True)
             
             # Faculty feedbacks compound index
@@ -54,7 +65,8 @@ class QueryOptimizer:
             logger.info("All indexes created successfully")
         except Exception as e:
             logger.error(f"Error creating indexes: {e}")
-            raise
+            # Don't raise - allow application to continue
+            logger.warning("Continuing without optimal indexes")
     
     async def get_collection_stats(self, collection_name: str) -> Dict[str, Any]:
         """Get collection statistics"""
