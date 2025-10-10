@@ -60,7 +60,7 @@ async def create_indexes():
         await db.feedback_submissions.create_index([("submitted_at", -1)])
         await db.feedback_submissions.create_index("student_section")
         await db.feedback_submissions.create_index("faculty_feedbacks.faculty_id")
-        await db.feedback_submissions.create_index("anonymous_id")
+        await db.feedback_submissions.create_index("anonymous_id", name="idx_anonymous_id_basic")
         
         # Admin indexes
         await db.admins.create_index("username", unique=True)

@@ -2,6 +2,9 @@
   command = "npm run build"
   publish = "dist"
 
+[build.environment]
+  VITE_BACKEND_URL = "https://sjcet-cse-feedback.onrender.com/api"
+
 # Ensure SPA routing works on Netlify
 [[redirects]]
   from = "/*"

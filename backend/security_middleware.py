@@ -8,7 +8,7 @@ from typing import Dict, Optional
 from fastapi import Request, HTTPException, status
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
-import redis
+import redis.asyncio as redis
 import os
 
 logger = logging.getLogger(__name__)
@@ -16,8 +16,8 @@ logger = logging.getLogger(__name__)
 # Redis connection for session storage
 redis_client = None
 
-def get_redis_client():
-    """Get Redis client for session storage"""
+async def get_redis_client():
+    """Get async Redis client for session storage"""
     global redis_client
     if redis_client is None:
         redis_url = os.environ.get('REDIS_URL', 'redis://localhost:6379')
@@ -30,7 +30,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, secret_key: str):
         super().__init__(app)
         self.secret_key = secret_key
-        self.redis = get_redis_client()
+        self.redis = None  # Will be initialized on first use
     
     async def dispatch(self, request: Request, call_next):
         """Process request through security middleware"""
@@ -62,6 +62,12 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         response.headers["Content-Security-Policy"] = csp
         
         return response
+    
+    async def get_redis(self):
+        """Get Redis client lazily"""
+        if self.redis is None:
+            self.redis = await get_redis_client()
+        return self.redis
 
 class CSRFMiddleware(BaseHTTPMiddleware):
     """CSRF protection middleware"""
@@ -69,7 +75,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, secret_key: str):
         super().__init__(app)
         self.secret_key = secret_key
-        self.redis = get_redis_client()
+        self.redis = None  # Will be initialized on first use
     
     async def dispatch(self, request: Request, call_next):
         """Process CSRF protection"""
@@ -108,12 +114,13 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             
             # Check if token exists in Redis
             try:
-                stored_token = self.redis.get(f"csrf:{session_id}")
+                redis_client = await self.get_redis()
+                stored_token = await redis_client.get(f"csrf:{session_id}")
                 if not stored_token or stored_token != token:
                     return False
                 
                 # Check token age (max 1 hour)
-                token_age = self.redis.ttl(f"csrf:{session_id}")
+                token_age = await redis_client.ttl(f"csrf:{session_id}")
                 if token_age > 3600:  # 1 hour in seconds
                     return False
             except Exception as e:
@@ -125,6 +132,12 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             logger.error(f"CSRF validation error: {e}")
             return False
+    
+    async def get_redis(self):
+        """Get Redis client lazily"""
+        if self.redis is None:
+            self.redis = await get_redis_client()
+        return self.redis
 
 class SessionMiddleware(BaseHTTPMiddleware):
     """Session management middleware"""
@@ -132,7 +145,7 @@ class SessionMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, secret_key: str):
         super().__init__(app)
         self.secret_key = secret_key
-        self.redis = get_redis_client()
+        self.redis = None  # Will be initialized on first use
     
     async def dispatch(self, request: Request, call_next):
         """Process session management"""
@@ -171,7 +184,8 @@ class SessionMiddleware(BaseHTTPMiddleware):
         """Create new session"""
         session_id = secrets.token_urlsafe(32)
         try:
-            await self.redis.setex(f"session:{session_id}", 86400, "active")  # 24 hours
+            redis_client = await self.get_redis()
+            await redis_client.setex(f"session:{session_id}", 86400, "active")  # 24 hours
         except Exception as e:
             logger.warning(f"Redis unavailable for session storage: {e}")
             # Continue without Redis - session will be stateless
@@ -180,7 +194,8 @@ class SessionMiddleware(BaseHTTPMiddleware):
     async def validate_session(self, session_id: str) -> bool:
         """Validate session exists and is active"""
         try:
-            return await self.redis.exists(f"session:{session_id}")
+            redis_client = await self.get_redis()
+            return await redis_client.exists(f"session:{session_id}")
         except Exception as e:
             logger.error(f"Session validation error: {e}")
             return False
@@ -189,18 +204,25 @@ class SessionMiddleware(BaseHTTPMiddleware):
         """Generate CSRF token for session"""
         csrf_token = secrets.token_urlsafe(32)
         try:
-            await self.redis.setex(f"csrf:{session_id}", 3600, csrf_token)  # 1 hour
+            redis_client = await self.get_redis()
+            await redis_client.setex(f"csrf:{session_id}", 3600, csrf_token)  # 1 hour
         except Exception as e:
             logger.warning(f"Redis unavailable for CSRF token storage: {e}")
             # Continue without Redis - CSRF token will be stateless
         return csrf_token
+    
+    async def get_redis(self):
+        """Get Redis client lazily"""
+        if self.redis is None:
+            self.redis = await get_redis_client()
+        return self.redis
 
 class AccountLockoutMiddleware(BaseHTTPMiddleware):
     """Account lockout middleware for failed login attempts"""
     
     def __init__(self, app):
         super().__init__(app)
-        self.redis = get_redis_client()
+        self.redis = None  # Will be initialized on first use
         self.max_attempts = 5
         self.lockout_duration = 900  # 15 minutes
     
@@ -236,8 +258,9 @@ class AccountLockoutMiddleware(BaseHTTPMiddleware):
     async def is_ip_locked(self, client_ip: str) -> bool:
         """Check if IP is currently locked out"""
         try:
+            redis_client = await self.get_redis()
             lockout_key = f"lockout:{client_ip}"
-            return await self.redis.exists(lockout_key)
+            return await redis_client.exists(lockout_key)
         except Exception as e:
             logger.warning(f"Redis unavailable for lockout check: {e}")
             return False  # Fail open - allow request if Redis is down
@@ -245,16 +268,17 @@ class AccountLockoutMiddleware(BaseHTTPMiddleware):
     async def record_failed_attempt(self, client_ip: str):
         """Record a failed login attempt"""
         try:
+            redis_client = await self.get_redis()
             attempts_key = f"attempts:{client_ip}"
-            current_attempts = await self.redis.incr(attempts_key)
+            current_attempts = await redis_client.incr(attempts_key)
             
             if current_attempts == 1:
-                await self.redis.expire(attempts_key, 900)  # 15 minutes
+                await redis_client.expire(attempts_key, 900)  # 15 minutes
             
             if current_attempts >= self.max_attempts:
                 lockout_key = f"lockout:{client_ip}"
-                await self.redis.setex(lockout_key, self.lockout_duration, "locked")
-                await self.redis.delete(attempts_key)
+                await redis_client.setex(lockout_key, self.lockout_duration, "locked")
+                await redis_client.delete(attempts_key)
         except Exception as e:
             logger.warning(f"Redis unavailable for failed attempt recording: {e}")
             # Continue without Redis - security features will be degraded but app will work
@@ -262,8 +286,15 @@ class AccountLockoutMiddleware(BaseHTTPMiddleware):
     async def get_lockout_remaining(self, client_ip: str) -> int:
         """Get remaining lockout time in seconds"""
         try:
+            redis_client = await self.get_redis()
             lockout_key = f"lockout:{client_ip}"
-            return await self.redis.ttl(lockout_key)
+            return await redis_client.ttl(lockout_key)
         except Exception as e:
             logger.error(f"Lockout remaining check error: {e}")
             return 0
+    
+    async def get_redis(self):
+        """Get Redis client lazily"""
+        if self.redis is None:
+            self.redis = await get_redis_client()
+        return self.redis

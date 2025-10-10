@@ -377,14 +377,18 @@ class AdvancedIndexManager:
             unique=True,
             partialFilterExpression={"student_id": {"$exists": True}}
         )
-        await collection.create_index([("anonymous_id", ASCENDING)], unique=True)
+        await collection.create_index([("anonymous_id", ASCENDING)], unique=True, name="idx_anonymous_id_unique")
         
         # Single field indexes
-        await collection.create_index([("submitted_at", DESCENDING)])
+        await collection.create_index([("submitted_at", DESCENDING)], name="idx_submitted_at_desc")
         await collection.create_index([("is_anonymous", ASCENDING)])
         
         # Partial indexes for recent feedback
-        await collection.create_index([("submitted_at", DESCENDING)], partialFilterExpression={"submitted_at": {"$gte": datetime.now() - timedelta(days=365)}})
+        await collection.create_index(
+            [("submitted_at", DESCENDING)], 
+            partialFilterExpression={"submitted_at": {"$gte": datetime.now() - timedelta(days=365)}},
+            name="idx_submitted_at_recent"
+        )
     
     async def _create_admin_indexes(self):
         """Create optimized indexes for admins collection"""
