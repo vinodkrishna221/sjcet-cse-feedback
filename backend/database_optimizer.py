@@ -93,7 +93,7 @@ class MaterializedViewManager:
                         "rating_distribution": 1,
                         "comments": 1,
                         "last_updated": 1,
-                        "created_at": {"$date": "$$NOW"}
+                        "created_at": "$$NOW"
                     }
                 }
             ]
@@ -160,7 +160,7 @@ class MaterializedViewManager:
                         "inactive_students": 1,
                         "created_at": 1,
                         "last_updated": 1,
-                        "view_created_at": {"$date": "$$NOW"}
+                        "view_created_at": "$$NOW"
                     }
                 }
             ]
@@ -259,7 +259,7 @@ class MaterializedViewManager:
                         "sections": 1,
                         "performance_score": {"$round": ["$performance_score", 2]},
                         "last_feedback": 1,
-                        "view_created_at": {"$date": "$$NOW"}
+                        "view_created_at": "$$NOW"
                     }
                 }
             ]
@@ -375,7 +375,7 @@ class AdvancedIndexManager:
         await collection.create_index(
             [("student_id", ASCENDING), ("semester", ASCENDING), ("academic_year", ASCENDING)], 
             unique=True,
-            partialFilterExpression={"student_id": {"$ne": None}}
+            partialFilterExpression={"student_id": {"$exists": True}}
         )
         await collection.create_index([("anonymous_id", ASCENDING)], unique=True)
         

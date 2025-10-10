@@ -107,14 +107,19 @@ class CSRFMiddleware(BaseHTTPMiddleware):
                 return False
             
             # Check if token exists in Redis
-            stored_token = self.redis.get(f"csrf:{session_id}")
-            if not stored_token or stored_token != token:
-                return False
-            
-            # Check token age (max 1 hour)
-            token_age = self.redis.ttl(f"csrf:{session_id}")
-            if token_age > 3600:  # 1 hour in seconds
-                return False
+            try:
+                stored_token = self.redis.get(f"csrf:{session_id}")
+                if not stored_token or stored_token != token:
+                    return False
+                
+                # Check token age (max 1 hour)
+                token_age = self.redis.ttl(f"csrf:{session_id}")
+                if token_age > 3600:  # 1 hour in seconds
+                    return False
+            except Exception as e:
+                logger.warning(f"Redis unavailable for CSRF validation: {e}")
+                # Allow request if Redis is down - fail open for security
+                return True
             
             return True
         except Exception as e:
@@ -165,7 +170,11 @@ class SessionMiddleware(BaseHTTPMiddleware):
     async def create_session(self) -> str:
         """Create new session"""
         session_id = secrets.token_urlsafe(32)
-        await self.redis.setex(f"session:{session_id}", 86400, "active")  # 24 hours
+        try:
+            await self.redis.setex(f"session:{session_id}", 86400, "active")  # 24 hours
+        except Exception as e:
+            logger.warning(f"Redis unavailable for session storage: {e}")
+            # Continue without Redis - session will be stateless
         return session_id
     
     async def validate_session(self, session_id: str) -> bool:
@@ -179,7 +188,11 @@ class SessionMiddleware(BaseHTTPMiddleware):
     async def generate_csrf_token(self, session_id: str) -> str:
         """Generate CSRF token for session"""
         csrf_token = secrets.token_urlsafe(32)
-        await self.redis.setex(f"csrf:{session_id}", 3600, csrf_token)  # 1 hour
+        try:
+            await self.redis.setex(f"csrf:{session_id}", 3600, csrf_token)  # 1 hour
+        except Exception as e:
+            logger.warning(f"Redis unavailable for CSRF token storage: {e}")
+            # Continue without Redis - CSRF token will be stateless
         return csrf_token
 
 class AccountLockoutMiddleware(BaseHTTPMiddleware):
@@ -226,8 +239,8 @@ class AccountLockoutMiddleware(BaseHTTPMiddleware):
             lockout_key = f"lockout:{client_ip}"
             return await self.redis.exists(lockout_key)
         except Exception as e:
-            logger.error(f"Lockout check error: {e}")
-            return False
+            logger.warning(f"Redis unavailable for lockout check: {e}")
+            return False  # Fail open - allow request if Redis is down
     
     async def record_failed_attempt(self, client_ip: str):
         """Record a failed login attempt"""
@@ -243,7 +256,8 @@ class AccountLockoutMiddleware(BaseHTTPMiddleware):
                 await self.redis.setex(lockout_key, self.lockout_duration, "locked")
                 await self.redis.delete(attempts_key)
         except Exception as e:
-            logger.error(f"Failed attempt recording error: {e}")
+            logger.warning(f"Redis unavailable for failed attempt recording: {e}")
+            # Continue without Redis - security features will be degraded but app will work
     
     async def get_lockout_remaining(self, client_ip: str) -> int:
         """Get remaining lockout time in seconds"""

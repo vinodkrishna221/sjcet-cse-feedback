@@ -15,8 +15,8 @@ export default defineConfig(({ mode }) => ({
           vendor: ['react', 'react-dom'],
           router: ['react-router-dom'],
           ui: ['@radix-ui/react-dialog', '@radix-ui/react-dropdown-menu', '@radix-ui/react-select'],
-          charts: ['recharts', 'chart.js'],
-          utils: ['lodash', 'date-fns', 'clsx'],
+          charts: ['recharts'],
+          utils: ['date-fns', 'clsx'],
           forms: ['react-hook-form', 'zod', '@hookform/resolvers'],
           state: ['zustand'],
           query: ['@tanstack/react-query'],
@@ -44,13 +44,7 @@ export default defineConfig(({ mode }) => ({
       },
     },
     // Compression and optimization
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: mode === 'production',
-        drop_debugger: mode === 'production',
-      },
-    },
+    minify: 'esbuild',
     // Source maps for production debugging
     sourcemap: mode === 'development',
     // Chunk size warnings
