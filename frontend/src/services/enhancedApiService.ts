@@ -42,7 +42,7 @@ class EnhancedApiService {
   private isRefreshing = false;
   private refreshPromise: Promise<string> | null = null;
 
-  constructor(baseUrl: string = '/api/v1') {
+  constructor(baseUrl: string = import.meta.env.VITE_BACKEND_URL || import.meta.env.REACT_APP_BACKEND_URL || '/api/v1') {
     this.baseUrl = baseUrl;
     this.loadTokens();
   }

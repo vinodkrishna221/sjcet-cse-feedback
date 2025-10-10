@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || import.meta.env.REACT_APP_BACKEND_URL || 'http://localhost:8001/api';
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || import.meta.env.REACT_APP_BACKEND_URL || 'http://localhost:8001/api/v1';
 
 // API Response types
 export interface ApiResponse<T = any> {
