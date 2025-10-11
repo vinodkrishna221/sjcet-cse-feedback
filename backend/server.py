@@ -8,6 +8,13 @@ import time
 from pathlib import Path
 from error_handling import global_exception_handler
 
+# Configure logging early
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 # Load environment variables first
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -252,13 +259,6 @@ async def performance_monitoring_middleware(request: Request, call_next):
 # Add custom middleware
 app.middleware("http")(rate_limit_middleware)
 app.middleware("http")(security_headers_middleware)
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
 
 @app.on_event("startup")
 async def startup_db_client():
