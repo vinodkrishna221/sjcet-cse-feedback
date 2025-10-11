@@ -193,8 +193,12 @@ if os.environ.get('ENVIRONMENT') == 'production' or os.environ.get('RENDER'):
 app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
 
 # CORS Configuration - Configure for production
-cors_origins = os.environ.get('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173,https://sjcet-feedback-portal.netlify.app').split(',')
-cors_origins = [origin.strip() for origin in cors_origins if origin.strip()]
+# In production, allow all origins for better compatibility
+if os.environ.get('ENVIRONMENT') == 'production' or os.environ.get('RENDER'):
+    cors_origins = ["*"]  # Allow all origins in production
+else:
+    cors_origins = os.environ.get('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173,https://sjcet-feedback-portal.netlify.app').split(',')
+    cors_origins = [origin.strip() for origin in cors_origins if origin.strip()]
 
 app.add_middleware(
     CORSMiddleware,
