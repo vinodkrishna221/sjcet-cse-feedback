@@ -196,21 +196,32 @@ app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
 # In production, allow all origins for better compatibility
 if os.environ.get('ENVIRONMENT') == 'production' or os.environ.get('RENDER'):
     cors_origins = ["*"]  # Allow all origins in production
+    logger.info("CORS configured for production: allowing all origins")
 else:
     cors_origins = os.environ.get('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173,https://sjcet-feedback-portal.netlify.app').split(',')
     cors_origins = [origin.strip() for origin in cors_origins if origin.strip()]
+    logger.info(f"CORS configured for development: {cors_origins}")
 
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
     allow_origins=cors_origins,
-    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "Content-Type", "Accept", "X-CSRF-Token"],
-    expose_headers=["X-CSRF-Token"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH", "HEAD"],
+    allow_headers=["*"],  # Allow all headers for simplicity
+    expose_headers=["*"],  # Expose all headers
+    max_age=3600,  # Cache preflight for 1 hour
 )
 
 # Add advanced security middleware
 SECRET_KEY = os.environ.get("SECRET_KEY", "your-secret-key-here")
+
+# Log middleware order for debugging
+logger.info("Adding security middleware in order:")
+logger.info("1. AccountLockoutMiddleware")
+logger.info("2. SessionMiddleware")
+logger.info("3. CSRFMiddleware")
+logger.info("4. SecurityMiddleware")
+
 app.add_middleware(AccountLockoutMiddleware)
 app.add_middleware(SessionMiddleware, secret_key=SECRET_KEY)
 app.add_middleware(CSRFMiddleware, secret_key=SECRET_KEY)

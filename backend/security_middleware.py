@@ -34,14 +34,19 @@ class SecurityMiddleware(BaseHTTPMiddleware):
     
     async def dispatch(self, request: Request, call_next):
         """Process request through security middleware"""
-        # Skip security checks for health checks and static files
-        if request.url.path in ['/api/health', '/api/', '/docs', '/openapi.json']:
+        # Skip security checks for health checks, static files, and OPTIONS requests
+        if request.url.path in ['/api/health', '/api/', '/docs', '/openapi.json'] or request.method == 'OPTIONS':
             return await call_next(request)
         
-        # Add security headers
+        # Process request
         response = await call_next(request)
         
-        # Security headers
+        # Skip security headers for API endpoints to avoid CORS conflicts
+        if request.url.path.startswith('/api/'):
+            logger.debug(f"Security headers skipped for API endpoint: {request.url.path}")
+            return response
+        
+        # Security headers for non-API endpoints
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "1; mode=block"
@@ -49,7 +54,7 @@ class SecurityMiddleware(BaseHTTPMiddleware):
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
         
-        # Content Security Policy
+        # Content Security Policy (only for non-API endpoints)
         csp = (
             "default-src 'self'; "
             "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
@@ -83,11 +88,13 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         if request.method in ['GET', 'HEAD', 'OPTIONS']:
             return await call_next(request)
         
-        # Skip CSRF for API endpoints that don't need it (auth endpoints)
-        if request.url.path.startswith('/api/auth/'):
+        # Skip CSRF for ALL API endpoints since we use JWT token-based authentication
+        # CSRF protection is unnecessary for stateless REST APIs with Bearer tokens
+        if request.url.path.startswith('/api/'):
+            logger.debug(f"CSRF skipped for API endpoint: {request.url.path}")
             return await call_next(request)
         
-        # Get CSRF token from header
+        # Get CSRF token from header for non-API endpoints
         csrf_token = request.headers.get('X-CSRF-Token')
         if not csrf_token:
             return JSONResponse(
@@ -149,7 +156,12 @@ class SessionMiddleware(BaseHTTPMiddleware):
     
     async def dispatch(self, request: Request, call_next):
         """Process session management"""
-        # Get or create session
+        # Skip session management for API endpoints since we use stateless JWT authentication
+        if request.url.path.startswith('/api/'):
+            logger.debug(f"Session management skipped for API endpoint: {request.url.path}")
+            return await call_next(request)
+        
+        # Get or create session for non-API endpoints
         session_id = request.cookies.get('session_id')
         if not session_id or not await self.validate_session(session_id):
             session_id = await self.create_session()
@@ -164,19 +176,23 @@ class SessionMiddleware(BaseHTTPMiddleware):
         
         response = await call_next(request)
         
-        # Set session cookie
-        response.set_cookie(
-            'session_id',
-            session_id,
-            httponly=True,
-            secure=True,
-            samesite='strict',
-            max_age=86400  # 24 hours
-        )
-        
-        # Add CSRF token to response headers for state-changing methods
-        if hasattr(request.state, 'csrf_token'):
-            response.headers['X-CSRF-Token'] = request.state.csrf_token
+        # Set session cookie only for non-API requests
+        if not request.url.path.startswith('/api/'):
+            # Determine secure setting based on environment
+            secure_cookie = os.environ.get('ENVIRONMENT') == 'production' or os.environ.get('RENDER')
+            
+            response.set_cookie(
+                'session_id',
+                session_id,
+                httponly=True,
+                secure=secure_cookie,
+                samesite='none' if secure_cookie else 'lax',  # Cross-origin support for production
+                max_age=86400  # 24 hours
+            )
+            
+            # Add CSRF token to response headers for state-changing methods
+            if hasattr(request.state, 'csrf_token'):
+                response.headers['X-CSRF-Token'] = request.state.csrf_token
         
         return response
     
