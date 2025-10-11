@@ -136,13 +136,13 @@ async def root():
     return {"message": "Student Feedback Management System API", "version": "1.0.0", "status": "healthy"}
 
 # Add root endpoint for Render health checks
-@app.get("/")
+@app.api_route("/", methods=["GET", "HEAD"])
 async def root_health():
     """Root endpoint for Render health checks"""
     return {"message": "Student Feedback Management System API", "version": "1.0.0", "status": "healthy"}
 
 # Add favicon endpoint to handle favicon requests
-@app.get("/favicon.ico")
+@app.api_route("/favicon.ico", methods=["GET", "HEAD"])
 async def favicon():
     """Handle favicon requests"""
     return {"message": "No favicon available"}
@@ -195,10 +195,6 @@ app.add_middleware(TrustedHostMiddleware, allowed_hosts=allowed_hosts)
 # CORS Configuration - Configure for production
 cors_origins = os.environ.get('CORS_ORIGINS', 'http://localhost:3000,http://localhost:5173,https://sjcet-feedback-portal.netlify.app').split(',')
 cors_origins = [origin.strip() for origin in cors_origins if origin.strip()]
-
-# In production, allow all origins for Render deployment
-if os.environ.get('ENVIRONMENT') == 'production' or os.environ.get('RENDER'):
-    cors_origins = ["*"]
 
 app.add_middleware(
     CORSMiddleware,

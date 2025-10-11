@@ -399,8 +399,10 @@ class AdvancedIndexManager:
             # Handle anonymous_id index creation carefully
             await self._create_anonymous_id_index(collection)
             
+            # Handle submitted_at index creation with conflict resolution
+            await self._create_submitted_at_index(collection)
+            
             # Single field indexes
-            await collection.create_index([("submitted_at", DESCENDING)], name="idx_submitted_at_desc")
             await collection.create_index([("is_anonymous", ASCENDING)])
             
             # Partial indexes for recent feedback
@@ -411,7 +413,7 @@ class AdvancedIndexManager:
             )
         except Exception as e:
             logger.error(f"Error creating feedback indexes: {e}")
-            raise
+            # Don't raise - allow application to continue
     
     async def _create_anonymous_id_index(self, collection):
         """Create anonymous_id index with conflict handling"""
@@ -448,7 +450,44 @@ class AdvancedIndexManager:
                 logger.warning("Anonymous_id index already exists with different name, skipping creation")
             else:
                 logger.error(f"Error creating anonymous_id index: {e}")
-                raise
+                # Don't raise - allow application to continue
+
+    async def _create_submitted_at_index(self, collection):
+        """Create submitted_at index with conflict handling"""
+        try:
+            # Check if submitted_at index already exists
+            existing_indexes = await collection.list_indexes().to_list(None)
+            submitted_at_index_exists = any(
+                index.get("key", {}).get("submitted_at") is not None 
+                for index in existing_indexes
+            )
+            
+            if submitted_at_index_exists:
+                # Check if existing index is named properly
+                existing_submitted_index = next(
+                    (index for index in existing_indexes 
+                     if index.get("key", {}).get("submitted_at") is not None), 
+                    None
+                )
+                
+                if existing_submitted_index and existing_submitted_index.get("name") != "idx_submitted_at_desc":
+                    # Drop existing index and create named version
+                    await collection.drop_index(existing_submitted_index["name"])
+                    await collection.create_index([("submitted_at", DESCENDING)], name="idx_submitted_at_desc")
+                    logger.info("Replaced existing submitted_at index with named version")
+                else:
+                    logger.info("Submitted_at index already exists with proper name")
+            else:
+                # Create new named index
+                await collection.create_index([("submitted_at", DESCENDING)], name="idx_submitted_at_desc")
+                logger.info("Created submitted_at index with name")
+                    
+        except Exception as e:
+            if "Index already exists with a different name" in str(e):
+                logger.warning("Submitted_at index already exists with different name, skipping creation")
+            else:
+                logger.error(f"Error creating submitted_at index: {e}")
+                # Don't raise - allow application to continue
 
     async def _create_admin_indexes(self):
         """Create optimized indexes for admins collection"""
