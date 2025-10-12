@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LogOut, Eye, TrendingUp, Users, Star, BookOpen, Package } from "lucide-react";
+import { LogOut, Eye, TrendingUp, Users, Star, BookOpen, Package, EyeOff } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { BundledFeedback, LegacyFeedbackData, FEEDBACK_QUESTIONS, Department, BatchYear, HODCreate } from "@/types/feedback";
@@ -32,7 +32,14 @@ const PrincipalDashboard = () => {
   // Form states
   const [newDepartment, setNewDepartment] = useState({ name: '', code: '' });
   const [newBatchYear, setNewBatchYear] = useState({ year_range: '', department: '' });
-  const [newHOD, setNewHOD] = useState<HODCreate>({ username: '', password: '', name: '', department: '' });
+  const [newHOD, setNewHOD] = useState<HODCreate>({ 
+    username: '', 
+    password: '', 
+    name: '', 
+    department: '',
+    email: '',
+    phone: ''
+  });
   const [newSections, setNewSections] = useState<string[]>([]);
   
   // Dialog states
@@ -41,6 +48,7 @@ const PrincipalDashboard = () => {
   const [isHODDialogOpen, setIsHODDialogOpen] = useState(false);
   const [isSectionsDialogOpen, setIsSectionsDialogOpen] = useState(false);
   const [selectedBatchYear, setSelectedBatchYear] = useState<string>('');
+  const [showPassword, setShowPassword] = useState(false);
 
   useEffect(() => {
     // Check if user is logged in and is principal
@@ -124,6 +132,12 @@ const PrincipalDashboard = () => {
       return;
     }
     
+    // Validate batch year format
+    if (!/^\d{4}-\d{4}$/.test(newBatchYear.year_range)) {
+      toast.error('Batch year must be in format YYYY-YYYY (e.g., 2024-2028)');
+      return;
+    }
+    
     try {
       const response = await apiService.createBatchYear(newBatchYear);
       if (response.success) {
@@ -151,8 +165,16 @@ const PrincipalDashboard = () => {
       const response = await apiService.createHOD(newHOD);
       if (response.success) {
         toast.success('HOD created successfully');
-        setNewHOD({ username: '', password: '', name: '', department: '' });
+        setNewHOD({ 
+          username: '', 
+          password: '', 
+          name: '', 
+          department: '',
+          email: '',
+          phone: ''
+        });
         setIsHODDialogOpen(false);
+        setShowPassword(false);
         loadManagementData();
       } else {
         toast.error(response.message || 'Failed to create HOD');
@@ -725,13 +747,32 @@ const PrincipalDashboard = () => {
                             </div>
                             <div>
                               <Label htmlFor="hod-password">Password</Label>
-                              <Input
-                                id="hod-password"
-                                type="password"
-                                value={newHOD.password}
-                                onChange={(e) => setNewHOD(prev => ({ ...prev, password: e.target.value }))}
-                                placeholder="Enter password"
-                              />
+                              <div className="relative">
+                                <Input
+                                  id="hod-password"
+                                  type={showPassword ? "text" : "password"}
+                                  value={newHOD.password}
+                                  onChange={(e) => setNewHOD(prev => ({ ...prev, password: e.target.value }))}
+                                  placeholder="Enter password"
+                                  className="pr-10"
+                                />
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                                  onClick={() => setShowPassword(!showPassword)}
+                                >
+                                  {showPassword ? (
+                                    <EyeOff className="h-4 w-4" />
+                                  ) : (
+                                    <Eye className="h-4 w-4" />
+                                  )}
+                                </Button>
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Must be 8+ characters with uppercase, lowercase, digit, and special character
+                              </p>
                             </div>
                           </div>
                           <div className="grid grid-cols-2 gap-4">
@@ -758,6 +799,27 @@ const PrincipalDashboard = () => {
                                   ))}
                                 </SelectContent>
                               </Select>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <Label htmlFor="hod-email">Email (Optional)</Label>
+                              <Input
+                                id="hod-email"
+                                type="email"
+                                value={newHOD.email || ''}
+                                onChange={(e) => setNewHOD(prev => ({ ...prev, email: e.target.value }))}
+                                placeholder="Enter email address"
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="hod-phone">Phone (Optional)</Label>
+                              <Input
+                                id="hod-phone"
+                                value={newHOD.phone || ''}
+                                onChange={(e) => setNewHOD(prev => ({ ...prev, phone: e.target.value }))}
+                                placeholder="Enter phone number"
+                              />
                             </div>
                           </div>
                         </div>

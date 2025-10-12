@@ -2,7 +2,7 @@ export interface Teacher {
   id: string;
   name: string;
   subject: string;
-  sections: ('A' | 'B')[];
+  sections: ('A' | 'B' | 'C' | 'D')[];
 }
 
 export interface QuestionRating {
@@ -29,7 +29,7 @@ export interface IndividualFeedback {
 export interface BundledFeedback {
   id: string;
   studentName: string; // e.g., "Anonymous Student 1"
-  studentSection: 'A' | 'B';
+  studentSection: 'A' | 'B' | 'C' | 'D';
   teacherFeedbacks: IndividualFeedback[];
   submittedAt: string;
 }

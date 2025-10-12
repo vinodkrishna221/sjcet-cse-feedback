@@ -13,7 +13,7 @@ import { toast } from "sonner";
 const StudentLogin = () => {
   const navigate = useNavigate();
   const { loginStudent } = useAuth();
-  const [section, setSection] = useState<'A' | 'B' | ''>('');
+  const [section, setSection] = useState<'A' | 'B' | 'C' | 'D' | ''>('');
   const [regNumber, setRegNumber] = useState('');
   const [dob, setDob] = useState('');
   const [error, setError] = useState('');
@@ -30,10 +30,9 @@ const StudentLogin = () => {
       return;
     }
 
-    // Validate registration number format
-    const regNumberPattern = /^24G31A05\d{2}$/;
-    if (!regNumberPattern.test(regNumber)) {
-      setError('Invalid registration number format. Expected format: 24G31A05XX');
+    // Basic validation - let backend handle detailed format validation
+    if (regNumber.length < 5 || regNumber.length > 20) {
+      setError('Registration number must be between 5 and 20 characters');
       setIsLoading(false);
       return;
     }
@@ -77,13 +76,15 @@ const StudentLogin = () => {
               {/* Section Selection */}
               <div className="space-y-2">
                 <Label htmlFor="section">Section</Label>
-                <Select value={section} onValueChange={(value: 'A' | 'B') => setSection(value)}>
+                <Select value={section} onValueChange={(value: 'A' | 'B' | 'C' | 'D') => setSection(value)}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select your section" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="A">Section A</SelectItem>
                     <SelectItem value="B">Section B</SelectItem>
+                    <SelectItem value="C">Section C</SelectItem>
+                    <SelectItem value="D">Section D</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -100,7 +101,7 @@ const StudentLogin = () => {
                   className="font-mono"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Format: 24G31A05XX (where XX is your roll number)
+                  Enter your registration number (5-20 characters, letters and numbers only)
                 </p>
               </div>
 

@@ -4,7 +4,7 @@ from typing import List, Dict, Any, Optional
 import logging
 from models import (
     Admin, AdminCreate, Department, DepartmentCreate, BatchYear, BatchYearCreate,
-    APIResponse, UserRole, Section
+    APIResponse, UserRole, Section, SectionsUpdate
 )
 from database import DatabaseOperations
 from auth import AuthService, AuthHelpers
@@ -546,7 +546,7 @@ async def get_all_batch_years(
 @router.post("/batch-years/{batch_id}/sections", response_model=APIResponse)
 async def add_sections_to_batch_year(
     batch_id: str,
-    sections: List[Section],
+    sections_data: SectionsUpdate,
     principal: Any = Depends(get_current_principal)
 ):
     """Add sections to a batch year"""
@@ -568,7 +568,7 @@ async def add_sections_to_batch_year(
             {"id": batch_id},
             {
                 "$set": {
-                    "sections": [section.value for section in sections],
+                    "sections": [section.value for section in sections_data.sections],
                     "updated_at": DatabaseOperations.get_current_timestamp()
                 }
             }

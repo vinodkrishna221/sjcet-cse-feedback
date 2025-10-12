@@ -250,6 +250,9 @@ class BatchYearCreate(BaseModel):
     department: str = Field(..., min_length=2, max_length=50)
     sections: List[Section] = Field(default_factory=list)
 
+class SectionsUpdate(BaseModel):
+    sections: List[Section] = Field(..., min_items=1, max_items=4)
+
 # Feedback Models
 class QuestionRating(BaseModel):
     question_id: str

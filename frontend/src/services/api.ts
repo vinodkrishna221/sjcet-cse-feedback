@@ -35,7 +35,21 @@ class ApiService {
     const data = await response.json();
     
     if (!response.ok) {
-      throw new Error(data.message || data.detail || 'API request failed');
+      // Better error message handling
+      let errorMessage = 'API request failed';
+      if (data.message) {
+        errorMessage = data.message;
+      } else if (data.detail) {
+        errorMessage = data.detail;
+      } else if (data.errors) {
+        // Handle validation errors
+        if (Array.isArray(data.errors)) {
+          errorMessage = data.errors.join(', ');
+        } else if (typeof data.errors === 'object') {
+          errorMessage = Object.values(data.errors).flat().join(', ');
+        }
+      }
+      throw new Error(errorMessage);
     }
     
     return data;
@@ -111,8 +125,13 @@ class ApiService {
   }
 
   // Get all feedback bundles (for admin)
-  async getFeedbackBundles() {
-    const response = await fetch(`${API_BASE_URL}/feedback/bundles`, {
+  async getFeedbackBundles(department?: string) {
+    const params = new URLSearchParams();
+    if (department) params.append('department', department);
+    
+    const url = `${API_BASE_URL}/feedback/bundles${params.toString() ? `?${params.toString()}` : ''}`;
+    
+    const response = await fetch(url, {
       headers: this.getAuthHeaders()
     });
 
@@ -120,8 +139,13 @@ class ApiService {
   }
 
   // Get feedback analytics (for admin)
-  async getFeedbackAnalytics() {
-    const response = await fetch(`${API_BASE_URL}/feedback/analytics/dashboard`, {
+  async getFeedbackAnalytics(department?: string) {
+    const params = new URLSearchParams();
+    if (department) params.append('department', department);
+    
+    const url = `${API_BASE_URL}/feedback/analytics/dashboard${params.toString() ? `?${params.toString()}` : ''}`;
+    
+    const response = await fetch(url, {
       headers: this.getAuthHeaders()
     });
 
@@ -327,7 +351,10 @@ class ApiService {
     const response = await fetch(`${API_BASE_URL}/admin/hods`, {
       method: 'POST',
       headers: this.getAuthHeaders(),
-      body: JSON.stringify(hodData)
+      body: JSON.stringify({
+        ...hodData,
+        role: 'hod'
+      })
     });
 
     return this.handleResponse<ApiResponse>(response);

@@ -396,17 +396,34 @@ async def get_section_feedback_analytics(
         )
 
 @router.get("/analytics/dashboard", response_model=APIResponse)
-async def get_dashboard_analytics(admin: Any = Depends(get_current_admin)):
-    """Get comprehensive dashboard analytics"""
+async def get_dashboard_analytics(
+    department: Optional[str] = None,
+    admin: Any = Depends(get_current_admin)
+):
+    """Get comprehensive dashboard analytics with optional department filter"""
     try:
+        # Build filter criteria for department
+        department_filter = {}
+        
+        # For HOD role, restrict to their department
+        if admin.role == "hod" and admin.department:
+            department_filter["department"] = admin.department.upper()
+        elif department:
+            department_filter["department"] = department.upper()
+        
         # Get basic statistics
-        dashboard_summary = await AnalyticsOperations.get_dashboard_summary()
+        dashboard_summary = await AnalyticsOperations.get_dashboard_summary(department_filter)
         
         # Get section-wise analytics
         section_analytics = []
         for section in ['A', 'B']:
+            # Build match conditions for section and department
+            match_conditions = {"student_section": section}
+            if department_filter.get("department"):
+                match_conditions["department"] = department_filter["department"]
+            
             section_stats_pipeline = [
-                {"$match": {"student_section": section}},
+                {"$match": match_conditions},
                 {"$group": {
                     "_id": None,
                     "total_submissions": {"$sum": 1},
@@ -429,10 +446,14 @@ async def get_dashboard_analytics(admin: Any = Depends(get_current_admin)):
                 "recent_submissions": 0
             }
             
-            # Get student count
+            # Get student count with department filter
+            student_filter = {"section": section, "is_active": True}
+            if department_filter.get("department"):
+                student_filter["department"] = department_filter["department"]
+            
             total_students = await DatabaseOperations.count_documents(
                 "students",
-                {"section": section, "is_active": True}
+                student_filter
             )
             
             participation_rate = 0
@@ -532,13 +553,25 @@ async def get_feedback_questions():
     )
 
 @router.get("/bundles", response_model=APIResponse)
-async def get_feedback_bundles(admin: Any = Depends(get_current_admin)):
-    """Get all feedback bundles for admin dashboard"""
+async def get_feedback_bundles(
+    department: Optional[str] = None,
+    admin: Any = Depends(get_current_admin)
+):
+    """Get all feedback bundles for admin dashboard with optional department filter"""
     try:
+        # Build filter criteria
+        filter_criteria = {}
+        
+        # For HOD role, restrict to their department
+        if admin.role == "hod" and admin.department:
+            filter_criteria["department"] = admin.department.upper()
+        elif department:
+            filter_criteria["department"] = department.upper()
+        
         # Get all feedback submissions
         feedback_submissions = await DatabaseOperations.find_many(
             "feedback_submissions",
-            {},
+            filter_criteria,
             sort=[("submitted_at", -1)]
         )
         

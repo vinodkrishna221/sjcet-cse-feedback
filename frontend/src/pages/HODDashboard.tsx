@@ -15,7 +15,7 @@ import { apiService } from "@/services/api";
 import { toast } from "sonner";
 import Papa from 'papaparse';
 import { BundledFeedback as SubmissionBundle, BatchYear, Department } from "@/types/feedback";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import ReportGenerator from "@/components/ReportGenerator";
 
 // Backend-compatible interfaces based on models.py
@@ -47,23 +47,11 @@ interface TeacherDetails {
 
 // Use shared bundled feedback type from types/feedback
 
-interface LegacyFeedbackData {
-  id: number;
-  teacherId: string;
-  teacherName: string;
-  subject: string;
-  section: string;
-  rating: number;
-  feedbackCount: number;
-}
-
 export default function HODDashboard() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
   const [activeTab, setActiveTab] = useState("overview");
   const [feedbackData, setFeedbackData] = useState<SubmissionBundle[]>([]);
-  const [legacyData, setLegacyData] = useState<LegacyFeedbackData[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(false);
   const [expandedBundles, setExpandedBundles] = useState<Record<string, boolean>>({});
   const [expandedTeachersByBundle, setExpandedTeachersByBundle] = useState<Record<string, Record<string, boolean>>>({});
   
@@ -76,6 +64,7 @@ export default function HODDashboard() {
     dob: '',
     email: '',
     phone: '',
+    year: '',
     department: user?.department || 'CSE',
     batch_year: '2024-2028'
   });
@@ -134,8 +123,6 @@ export default function HODDashboard() {
 
   const loadDashboardData = async () => {
     try {
-      setIsLoading(true);
-      
       // Load batch years and departments
       const batchYearsResponse = await apiService.getBatchYears(user?.department);
       if (batchYearsResponse.success && batchYearsResponse.data?.batch_years) {
@@ -167,40 +154,14 @@ export default function HODDashboard() {
         setTeachers(teachersResponse.data.faculty);
       }
 
-      // Load feedback analytics
-      const analyticsResponse = await apiService.getFeedbackAnalytics();
-      if (analyticsResponse.success && analyticsResponse.data) {
-        // Process analytics data for dashboard
-        const analytics = analyticsResponse.data;
-        
-        // Convert analytics to legacy format for compatibility
-        const legacyData: LegacyFeedbackData[] = [];
-        if (analytics.top_faculty) {
-          analytics.top_faculty.forEach((faculty: any, index: number) => {
-            legacyData.push({
-              id: index + 1,
-              teacherId: faculty.faculty_id,
-              teacherName: faculty.faculty_name,
-              subject: faculty.subject,
-              section: "A", // Default section, will be updated based on actual data
-              rating: faculty.average_rating,
-              feedbackCount: faculty.total_feedback
-            });
-          });
-        }
-        setLegacyData(legacyData);
-      }
-
-      // Load feedback bundles (student submissions)
-      const bundlesResponse = await apiService.getFeedbackBundles();
+      // Load feedback bundles (student submissions) with department filter
+      const bundlesResponse = await apiService.getFeedbackBundles(user?.department);
       if (bundlesResponse.success && bundlesResponse.data?.bundles) {
         setFeedbackData(bundlesResponse.data.bundles);
       }
     } catch (error) {
       console.error('Error loading dashboard data:', error);
       toast.error('Failed to load dashboard data');
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -265,6 +226,7 @@ export default function HODDashboard() {
           dob: '',
           email: '',
           phone: '',
+          year: '',
           department: user?.department || 'CSE',
           batch_year: '2024-2028'
         });
@@ -1071,8 +1033,8 @@ export default function HODDashboard() {
                         </SelectTrigger>
                         <SelectContent>
                           {departments.map((dept) => (
-                            <SelectItem key={dept.id} value={dept.name}>
-                              {dept.name}
+                            <SelectItem key={dept.id} value={dept.code}>
+                              {dept.name} ({dept.code})
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -1133,6 +1095,20 @@ export default function HODDashboard() {
                         onChange={handleStudentInputChange}
                       />
                     </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="year">Year</Label>
+                      <Input 
+                        id="year" 
+                        name="year" 
+                        placeholder="e.g., 1st Year, 2nd Year" 
+                        value={newStudent.year || ''} 
+                        onChange={handleStudentInputChange}
+                      />
+                    </div>
+                    <div></div>
                   </div>
                   
                   <Button className="w-full" onClick={handleAddStudent}>
@@ -1470,7 +1446,7 @@ export default function HODDashboard() {
         <TabsContent value="reports">
           <ReportGenerator 
             userRole="hod" 
-            userDepartment={user?.department}
+            userDepartment={user?.department || 'CSE'}
             onReportGenerated={loadDashboardData}
           />
         </TabsContent>
