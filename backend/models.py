@@ -61,8 +61,8 @@ class AdminCreate(BaseModel):
     @field_validator('password')
     @classmethod
     def validate_password(cls, v):
-        if len(v) < 12:
-            raise ValueError('Password must be at least 12 characters long')
+        if len(v) < 8:
+            raise ValueError('Password must be at least 8 characters long')
         if not re.search(r'[A-Z]', v):
             raise ValueError('Password must contain at least one uppercase letter')
         if not re.search(r'[a-z]', v):
@@ -71,11 +71,6 @@ class AdminCreate(BaseModel):
             raise ValueError('Password must contain at least one digit')
         if not re.search(r'[!@#$%^&*(),.?":{}|<>]', v):
             raise ValueError('Password must contain at least one special character')
-        # Check for common weak patterns
-        if re.search(r'(.)\1{2,}', v):
-            raise ValueError('Password cannot contain more than 2 consecutive identical characters')
-        if re.search(r'(123|abc|qwe|asd|zxc)', v.lower()):
-            raise ValueError('Password cannot contain common sequences')
         return v
     
     @field_validator('phone')
@@ -99,8 +94,8 @@ class PasswordReset(BaseModel):
     @field_validator('new_password')
     @classmethod
     def validate_password(cls, v):
-        if len(v) < 12:
-            raise ValueError('Password must be at least 12 characters long')
+        if len(v) < 8:
+            raise ValueError('Password must be at least 8 characters long')
         if not re.search(r'[A-Z]', v):
             raise ValueError('Password must contain at least one uppercase letter')
         if not re.search(r'[a-z]', v):
@@ -109,11 +104,6 @@ class PasswordReset(BaseModel):
             raise ValueError('Password must contain at least one digit')
         if not re.search(r'[!@#$%^&*(),.?":{}|<>]', v):
             raise ValueError('Password must contain at least one special character')
-        # Check for common weak patterns
-        if re.search(r'(.)\1{2,}', v):
-            raise ValueError('Password cannot contain more than 2 consecutive identical characters')
-        if re.search(r'(123|abc|qwe|asd|zxc)', v.lower()):
-            raise ValueError('Password cannot contain common sequences')
         return v
 
 # Student Models

@@ -752,8 +752,8 @@ const PrincipalDashboard = () => {
                                 </SelectTrigger>
                                 <SelectContent>
                                   {departments.map((dept) => (
-                                    <SelectItem key={dept.id} value={dept.name}>
-                                      {dept.name}
+                                    <SelectItem key={dept.id} value={dept.code}>
+                                      {dept.name} ({dept.code})
                                     </SelectItem>
                                   ))}
                                 </SelectContent>
@@ -959,8 +959,8 @@ const PrincipalDashboard = () => {
                                 </SelectTrigger>
                                 <SelectContent>
                                   {departments.map((dept) => (
-                                    <SelectItem key={dept.id} value={dept.name}>
-                                      {dept.name}
+                                    <SelectItem key={dept.id} value={dept.code}>
+                                      {dept.name} ({dept.code})
                                     </SelectItem>
                                   ))}
                                 </SelectContent>

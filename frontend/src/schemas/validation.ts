@@ -4,7 +4,6 @@
 import { z } from 'zod';
 
 // Common validation patterns
-const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const phoneRegex = /^\+?[\d\s\-\(\)]{10,15}$/;
 const regNumberRegex = /^[A-Z0-9]{5,20}$/;
 
@@ -85,22 +84,12 @@ export const adminCreateSchema = z.object({
     .max(50, 'Username must be at most 50 characters')
     .regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores'),
   password: z.string()
-    .min(12, 'Password must be at least 12 characters')
+    .min(8, 'Password must be at least 8 characters')
     .max(128, 'Password must be at most 128 characters')
     .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
     .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
     .regex(/\d/, 'Password must contain at least one digit')
-    .regex(/[!@#$%^&*(),.?":{}|<>]/, 'Password must contain at least one special character')
-    .refine((password) => {
-      // Check for common weak patterns
-      if (/(.)\1{2,}/.test(password)) {
-        return false;
-      }
-      if (/123|abc|qwe|asd|zxc/i.test(password)) {
-        return false;
-      }
-      return true;
-    }, 'Password cannot contain common sequences or repeated characters'),
+    .regex(/[!@#$%^&*(),.?":{}|<>]/, 'Password must contain at least one special character'),
   name: z.string()
     .min(2, 'Name must be at least 2 characters')
     .max(100, 'Name must be at most 100 characters'),
@@ -147,7 +136,7 @@ export const passwordResetSchema = z.object({
   token: z.string()
     .min(1, 'Reset token is required'),
   new_password: z.string()
-    .min(12, 'Password must be at least 12 characters')
+    .min(8, 'Password must be at least 8 characters')
     .max(128, 'Password must be at most 128 characters')
     .regex(/[A-Z]/, 'Password must contain at least one uppercase letter')
     .regex(/[a-z]/, 'Password must contain at least one lowercase letter')
