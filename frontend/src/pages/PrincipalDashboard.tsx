@@ -31,7 +31,9 @@ const PrincipalDashboard = () => {
   
   // Form states
   const [newDepartment, setNewDepartment] = useState({ name: '', code: '' });
+  const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
   const [newBatchYear, setNewBatchYear] = useState({ year_range: '', department: '' });
+  const [editingBatchYear, setEditingBatchYear] = useState<BatchYear | null>(null);
   const [newHOD, setNewHOD] = useState<HODCreate>({ 
     username: '', 
     password: '', 
@@ -40,12 +42,16 @@ const PrincipalDashboard = () => {
     email: '',
     phone: ''
   });
+  const [editingHOD, setEditingHOD] = useState<any | null>(null);
   const [newSections, setNewSections] = useState<string[]>([]);
   
   // Dialog states
   const [isDepartmentDialogOpen, setIsDepartmentDialogOpen] = useState(false);
+  const [isEditDepartmentDialogOpen, setIsEditDepartmentDialogOpen] = useState(false);
   const [isBatchYearDialogOpen, setIsBatchYearDialogOpen] = useState(false);
+  const [isEditBatchYearDialogOpen, setIsEditBatchYearDialogOpen] = useState(false);
   const [isHODDialogOpen, setIsHODDialogOpen] = useState(false);
+  const [isEditHODDialogOpen, setIsEditHODDialogOpen] = useState(false);
   const [isSectionsDialogOpen, setIsSectionsDialogOpen] = useState(false);
   const [selectedBatchYear, setSelectedBatchYear] = useState<string>('');
   const [showPassword, setShowPassword] = useState(false);
@@ -125,6 +131,56 @@ const PrincipalDashboard = () => {
     }
   };
 
+  const handleEditDepartment = (department: Department) => {
+    setEditingDepartment(department);
+    setIsEditDepartmentDialogOpen(true);
+  };
+
+  const handleUpdateDepartment = async () => {
+    if (!editingDepartment || !editingDepartment.name || !editingDepartment.code) {
+      toast.error('Please fill all required fields');
+      return;
+    }
+    
+    try {
+      const response = await apiService.updateDepartment(editingDepartment.id, {
+        name: editingDepartment.name,
+        code: editingDepartment.code,
+        description: editingDepartment.description
+      });
+      if (response.success) {
+        toast.success('Department updated successfully');
+        setEditingDepartment(null);
+        setIsEditDepartmentDialogOpen(false);
+        loadManagementData();
+      } else {
+        toast.error(response.message || 'Failed to update department');
+      }
+    } catch (error) {
+      console.error('Error updating department:', error);
+      toast.error('Failed to update department');
+    }
+  };
+
+  const handleDeleteDepartment = async (department: Department) => {
+    if (!confirm(`Are you sure you want to delete ${department.name}? This action cannot be undone.`)) {
+      return;
+    }
+    
+    try {
+      const response = await apiService.deleteDepartment(department.id);
+      if (response.success) {
+        toast.success('Department deleted successfully');
+        loadManagementData();
+      } else {
+        toast.error(response.message || 'Failed to delete department');
+      }
+    } catch (error) {
+      console.error('Error deleting department:', error);
+      toast.error('Failed to delete department');
+    }
+  };
+
   // Batch year management handlers
   const handleCreateBatchYear = async () => {
     if (!newBatchYear.year_range || !newBatchYear.department) {
@@ -185,6 +241,59 @@ const PrincipalDashboard = () => {
     }
   };
 
+  const handleEditHOD = (hod: any) => {
+    setEditingHOD(hod);
+    setIsEditHODDialogOpen(true);
+  };
+
+  const handleUpdateHOD = async () => {
+    if (!editingHOD || !editingHOD.username || !editingHOD.name || !editingHOD.department) {
+      toast.error('Please fill all required fields');
+      return;
+    }
+    
+    try {
+      const response = await apiService.updateHOD(editingHOD.id, {
+        username: editingHOD.username,
+        password: editingHOD.password || undefined,
+        name: editingHOD.name,
+        email: editingHOD.email,
+        phone: editingHOD.phone,
+        department: editingHOD.department
+      });
+      if (response.success) {
+        toast.success('HOD updated successfully');
+        setEditingHOD(null);
+        setIsEditHODDialogOpen(false);
+        loadManagementData();
+      } else {
+        toast.error(response.message || 'Failed to update HOD');
+      }
+    } catch (error) {
+      console.error('Error updating HOD:', error);
+      toast.error('Failed to update HOD');
+    }
+  };
+
+  const handleDeactivateHOD = async (hod: any) => {
+    if (!confirm(`Are you sure you want to deactivate ${hod.name}? This will remove their access to the system.`)) {
+      return;
+    }
+    
+    try {
+      const response = await apiService.deleteHOD(hod.id);
+      if (response.success) {
+        toast.success('HOD deactivated successfully');
+        loadManagementData();
+      } else {
+        toast.error(response.message || 'Failed to deactivate HOD');
+      }
+    } catch (error) {
+      console.error('Error deactivating HOD:', error);
+      toast.error('Failed to deactivate HOD');
+    }
+  };
+
   // Section management handlers
   const handleAddSections = async () => {
     if (!selectedBatchYear || newSections.length === 0) {
@@ -193,7 +302,20 @@ const PrincipalDashboard = () => {
     }
     
     try {
-      const response = await apiService.addSectionsToBatchYear(selectedBatchYear, newSections);
+      // Find the batch year to get existing sections
+      const batchYear = batchYears.find(b => b.id === selectedBatchYear);
+      if (!batchYear) {
+        toast.error('Batch year not found');
+        return;
+      }
+      
+      // Merge existing sections with new sections
+      const existingSections = batchYear.sections || [];
+      const allSections = [...new Set([...existingSections, ...newSections])];
+      
+      const response = await apiService.updateBatchYear(selectedBatchYear, {
+        sections: allSections
+      });
       if (response.success) {
         toast.success('Sections added successfully');
         setNewSections([]);
@@ -223,6 +345,62 @@ const PrincipalDashboard = () => {
 
   const removeSection = (section: string) => {
     setNewSections(newSections.filter(s => s !== section));
+  };
+
+  const handleEditBatchYear = (batchYear: BatchYear) => {
+    setEditingBatchYear(batchYear);
+    setIsEditBatchYearDialogOpen(true);
+  };
+
+  const handleUpdateBatchYear = async () => {
+    if (!editingBatchYear || !editingBatchYear.year_range || !editingBatchYear.department) {
+      toast.error('Please fill all required fields');
+      return;
+    }
+    
+    // Validate batch year format
+    if (!/^\d{4}-\d{4}$/.test(editingBatchYear.year_range)) {
+      toast.error('Batch year must be in format YYYY-YYYY (e.g., 2024-2028)');
+      return;
+    }
+    
+    try {
+      const response = await apiService.updateBatchYear(editingBatchYear.id, {
+        year_range: editingBatchYear.year_range,
+        department: editingBatchYear.department,
+        sections: editingBatchYear.sections
+      });
+      if (response.success) {
+        toast.success('Batch year updated successfully');
+        setEditingBatchYear(null);
+        setIsEditBatchYearDialogOpen(false);
+        loadManagementData();
+      } else {
+        toast.error(response.message || 'Failed to update batch year');
+      }
+    } catch (error) {
+      console.error('Error updating batch year:', error);
+      toast.error('Failed to update batch year');
+    }
+  };
+
+  const handleDeleteBatchYear = async (batchYear: BatchYear) => {
+    if (!confirm(`Are you sure you want to delete batch year ${batchYear.year_range}? This action cannot be undone.`)) {
+      return;
+    }
+    
+    try {
+      const response = await apiService.deleteBatchYear(batchYear.id);
+      if (response.success) {
+        toast.success('Batch year deleted successfully');
+        loadManagementData();
+      } else {
+        toast.error(response.message || 'Failed to delete batch year');
+      }
+    } catch (error) {
+      console.error('Error deleting batch year:', error);
+      toast.error('Failed to delete batch year');
+    }
   };
 
   // Calculate comprehensive statistics combining both data sources
@@ -859,11 +1037,19 @@ const PrincipalDashboard = () => {
                             </TableCell>
                             <TableCell>
                               <div className="flex gap-2">
-                                <Button variant="outline" size="sm">
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => handleEditHOD(hod)}
+                                >
                                   <Pencil className="h-4 w-4 mr-1" />
                                   Edit
                                 </Button>
-                                <Button variant="destructive" size="sm">
+                                <Button 
+                                  variant="destructive" 
+                                  size="sm"
+                                  onClick={() => handleDeactivateHOD(hod)}
+                                >
                                   <Trash2 className="h-4 w-4 mr-1" />
                                   Deactivate
                                 </Button>
@@ -956,11 +1142,19 @@ const PrincipalDashboard = () => {
                             <TableCell>{dept.hod_name || 'Not Assigned'}</TableCell>
                             <TableCell>
                               <div className="flex gap-2">
-                                <Button variant="outline" size="sm">
+                                <Button 
+                                  variant="outline" 
+                                  size="sm"
+                                  onClick={() => handleEditDepartment(dept)}
+                                >
                                   <Pencil className="h-4 w-4 mr-1" />
                                   Edit
                                 </Button>
-                                <Button variant="destructive" size="sm">
+                                <Button 
+                                  variant="destructive" 
+                                  size="sm"
+                                  onClick={() => handleDeleteDepartment(dept)}
+                                >
                                   <Trash2 className="h-4 w-4 mr-1" />
                                   Delete
                                 </Button>
@@ -1133,11 +1327,19 @@ const PrincipalDashboard = () => {
                               </TableCell>
                               <TableCell>
                                 <div className="flex gap-2">
-                                  <Button variant="outline" size="sm">
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => handleEditBatchYear(batch)}
+                                  >
                                     <Pencil className="h-4 w-4 mr-1" />
                                     Edit
                                   </Button>
-                                  <Button variant="destructive" size="sm">
+                                  <Button 
+                                    variant="destructive" 
+                                    size="sm"
+                                    onClick={() => handleDeleteBatchYear(batch)}
+                                  >
                                     <Trash2 className="h-4 w-4 mr-1" />
                                     Delete
                                   </Button>
@@ -1155,6 +1357,226 @@ const PrincipalDashboard = () => {
           </TabsContent>
         </Tabs>
       </main>
+
+      {/* Edit Department Dialog */}
+      <Dialog open={isEditDepartmentDialogOpen} onOpenChange={setIsEditDepartmentDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Department</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="edit-dept-name">Department Name</Label>
+              <Input
+                id="edit-dept-name"
+                value={editingDepartment?.name || ''}
+                onChange={(e) => setEditingDepartment(prev => prev ? {...prev, name: e.target.value} : null)}
+                placeholder="e.g., Computer Science Engineering"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-dept-code">Department Code</Label>
+              <Input
+                id="edit-dept-code"
+                value={editingDepartment?.code || ''}
+                onChange={(e) => setEditingDepartment(prev => prev ? {...prev, code: e.target.value} : null)}
+                placeholder="e.g., CSE"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDepartmentDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateDepartment}>
+              Update Department
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit HOD Dialog */}
+      <Dialog open={isEditHODDialogOpen} onOpenChange={setIsEditHODDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit HOD</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="edit-hod-username">Username</Label>
+              <Input
+                id="edit-hod-username"
+                value={editingHOD?.username || ''}
+                onChange={(e) => setEditingHOD(prev => prev ? {...prev, username: e.target.value} : null)}
+                placeholder="Enter username"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-hod-password">Password (optional)</Label>
+              <div className="relative">
+                <Input
+                  id="edit-hod-password"
+                  type={showPassword ? "text" : "password"}
+                  value={editingHOD?.password || ''}
+                  onChange={(e) => setEditingHOD(prev => prev ? {...prev, password: e.target.value} : null)}
+                  placeholder="Enter new password (leave blank to keep current)"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="absolute right-0 top-0 h-full px-3 py-2 hover:bg-transparent"
+                  onClick={() => setShowPassword(!showPassword)}
+                >
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="edit-hod-name">Full Name</Label>
+              <Input
+                id="edit-hod-name"
+                value={editingHOD?.name || ''}
+                onChange={(e) => setEditingHOD(prev => prev ? {...prev, name: e.target.value} : null)}
+                placeholder="Enter full name"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-hod-department">Department</Label>
+              <Select 
+                value={editingHOD?.department || ''} 
+                onValueChange={(value) => setEditingHOD(prev => prev ? {...prev, department: value} : null)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select department" />
+                </SelectTrigger>
+                <SelectContent>
+                  {departments.map((dept) => (
+                    <SelectItem key={dept.id} value={dept.code}>
+                      {dept.name} ({dept.code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label htmlFor="edit-hod-email">Email (Optional)</Label>
+              <Input
+                id="edit-hod-email"
+                type="email"
+                value={editingHOD?.email || ''}
+                onChange={(e) => setEditingHOD(prev => prev ? {...prev, email: e.target.value} : null)}
+                placeholder="Enter email address"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-hod-phone">Phone (Optional)</Label>
+              <Input
+                id="edit-hod-phone"
+                value={editingHOD?.phone || ''}
+                onChange={(e) => setEditingHOD(prev => prev ? {...prev, phone: e.target.value} : null)}
+                placeholder="Enter phone number"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditHODDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateHOD}>
+              Update HOD
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Batch Year Dialog */}
+      <Dialog open={isEditBatchYearDialogOpen} onOpenChange={setIsEditBatchYearDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Batch Year</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="edit-batch-year">Year Range</Label>
+              <Input
+                id="edit-batch-year"
+                value={editingBatchYear?.year_range || ''}
+                onChange={(e) => setEditingBatchYear(prev => prev ? {...prev, year_range: e.target.value} : null)}
+                placeholder="e.g., 2024-2028"
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-batch-department">Department</Label>
+              <Select 
+                value={editingBatchYear?.department || ''} 
+                onValueChange={(value) => setEditingBatchYear(prev => prev ? {...prev, department: value} : null)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select department" />
+                </SelectTrigger>
+                <SelectContent>
+                  {departments.map((dept) => (
+                    <SelectItem key={dept.id} value={dept.code}>
+                      {dept.name} ({dept.code})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Sections</Label>
+              <div className="flex gap-2 flex-wrap">
+                {editingBatchYear?.sections?.map((section) => (
+                  <Badge key={section} variant="outline" className="flex items-center gap-1">
+                    {section}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-4 w-4 p-0"
+                      onClick={() => setEditingBatchYear(prev => prev ? {
+                        ...prev,
+                        sections: prev.sections?.filter(s => s !== section) || []
+                      } : null)}
+                    >
+                      ×
+                    </Button>
+                  </Badge>
+                ))}
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  const section = prompt('Enter section letter (A, B, C, D):');
+                  if (section && ['A', 'B', 'C', 'D'].includes(section.toUpperCase())) {
+                    const upperSection = section.toUpperCase();
+                    if (!editingBatchYear?.sections?.includes(upperSection)) {
+                      setEditingBatchYear(prev => prev ? {
+                        ...prev,
+                        sections: [...(prev.sections || []), upperSection]
+                      } : null);
+                    } else {
+                      toast.error('Section already added');
+                    }
+                  }
+                }}
+                className="mt-2"
+              >
+                Add Section
+              </Button>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditBatchYearDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleUpdateBatchYear}>
+              Update Batch Year
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

@@ -435,6 +435,15 @@ class ApiService {
     return this.handleResponse<ApiResponse>(response);
   }
 
+  async deleteDepartment(deptId: string) {
+    const response = await fetch(`${API_BASE_URL}/admin/departments/${deptId}`, {
+      method: 'DELETE',
+      headers: this.getAuthHeaders()
+    });
+
+    return this.handleResponse<ApiResponse>(response);
+  }
+
   // Principal Batch Year Management
   async createBatchYear(batchData: {
     year_range: string;
@@ -467,6 +476,29 @@ class ApiService {
       method: 'POST',
       headers: this.getAuthHeaders(),
       body: JSON.stringify({ sections })
+    });
+
+    return this.handleResponse<ApiResponse>(response);
+  }
+
+  async updateBatchYear(batchId: string, batchData: {
+    year_range?: string;
+    department?: string;
+    sections?: ('A' | 'B' | 'C' | 'D')[];
+  }) {
+    const response = await fetch(`${API_BASE_URL}/admin/batch-years/${batchId}`, {
+      method: 'PUT',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(batchData)
+    });
+
+    return this.handleResponse<ApiResponse>(response);
+  }
+
+  async deleteBatchYear(batchId: string) {
+    const response = await fetch(`${API_BASE_URL}/admin/batch-years/${batchId}`, {
+      method: 'DELETE',
+      headers: this.getAuthHeaders()
     });
 
     return this.handleResponse<ApiResponse>(response);

@@ -250,6 +250,11 @@ class BatchYearCreate(BaseModel):
     department: str = Field(..., min_length=2, max_length=50)
     sections: List[Section] = Field(default_factory=list)
 
+class BatchYearUpdate(BaseModel):
+    year_range: Optional[str] = Field(None, min_length=9, max_length=9)
+    department: Optional[str] = Field(None, min_length=2, max_length=50)
+    sections: Optional[List[Section]] = None
+
 class SectionsUpdate(BaseModel):
     sections: List[Section] = Field(..., min_items=1, max_items=4)
 

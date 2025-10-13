@@ -5,7 +5,7 @@ import logging
 from datetime import datetime, timezone
 from models import (
     Admin, AdminCreate, Department, DepartmentCreate, BatchYear, BatchYearCreate,
-    APIResponse, UserRole, Section, SectionsUpdate
+    BatchYearUpdate, APIResponse, UserRole, Section, SectionsUpdate
 )
 from database import DatabaseOperations
 from auth import AuthService, AuthHelpers
@@ -22,6 +22,16 @@ async def get_current_principal(credentials: HTTPAuthorizationCredentials = Depe
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Principal access required"
+        )
+    return admin
+
+async def get_current_admin_or_hod(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Dependency to get current admin user (principal or HOD)"""
+    admin = await AuthService.get_current_admin(credentials.credentials)
+    if not admin or admin.role not in ["principal", "hod"]:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
         )
     return admin
 
@@ -339,7 +349,7 @@ async def create_department(
 
 @router.get("/departments", response_model=APIResponse)
 async def get_all_departments(
-    principal: Any = Depends(get_current_principal)
+    admin: Any = Depends(get_current_admin_or_hod)
 ):
     """Get all departments"""
     try:
@@ -446,6 +456,67 @@ async def update_department(
             detail="Error updating department"
         )
 
+@router.delete("/departments/{dept_id}", response_model=APIResponse)
+async def delete_department(
+    dept_id: str,
+    principal: Any = Depends(get_current_principal)
+):
+    """Soft delete a department"""
+    try:
+        # Check if department exists
+        existing_dept = await DatabaseOperations.find_one(
+            "departments",
+            {"id": dept_id, "is_active": True}
+        )
+        if not existing_dept:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Department not found"
+            )
+        
+        # Check if department has active HODs
+        active_hod = await DatabaseOperations.find_one(
+            "admins",
+            {"department": existing_dept["code"], "role": "hod", "is_active": True}
+        )
+        if active_hod:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot delete department with active HOD. Please deactivate HOD first."
+            )
+        
+        # Check if department has active batch years
+        active_batch = await DatabaseOperations.find_one(
+            "batch_years",
+            {"department": existing_dept["code"], "is_active": True}
+        )
+        if active_batch:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot delete department with active batch years. Please delete batch years first."
+            )
+        
+        # Soft delete department
+        await DatabaseOperations.update_one(
+            "departments",
+            {"id": dept_id},
+            {"$set": {"is_active": False, "updated_at": datetime.now(timezone.utc)}}
+        )
+        
+        return APIResponse(
+            success=True,
+            message="Department deleted successfully"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting department: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error deleting department"
+        )
+
 # Batch Year Management Endpoints
 @router.post("/batch-years", response_model=APIResponse)
 async def create_batch_year(
@@ -510,7 +581,7 @@ async def create_batch_year(
 @router.get("/batch-years", response_model=APIResponse)
 async def get_all_batch_years(
     department: Optional[str] = None,
-    principal: Any = Depends(get_current_principal)
+    admin: Any = Depends(get_current_admin_or_hod)
 ):
     """Get all batch years with optional department filter"""
     try:
@@ -587,6 +658,86 @@ async def add_sections_to_batch_year(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error adding sections to batch year"
+        )
+
+@router.put("/batch-years/{batch_id}", response_model=APIResponse)
+async def update_batch_year(
+    batch_id: str,
+    batch_data: BatchYearUpdate,
+    principal: Any = Depends(get_current_principal)
+):
+    """Update batch year details including sections"""
+    try:
+        # Check if batch year exists
+        existing_batch = await DatabaseOperations.find_one(
+            "batch_years",
+            {"id": batch_id, "is_active": True}
+        )
+        if not existing_batch:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Batch year not found"
+            )
+        
+        # Validate department if provided
+        if batch_data.department:
+            department = await DatabaseOperations.find_one(
+                "departments",
+                {"code": batch_data.department.upper(), "is_active": True}
+            )
+            if not department:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Department not found"
+                )
+        
+        # Check for duplicate batch years (excluding current)
+        if batch_data.year_range or batch_data.department:
+            year_range = batch_data.year_range or existing_batch["year_range"]
+            department_code = batch_data.department or existing_batch["department"]
+            
+            duplicate_batch = await DatabaseOperations.find_one(
+                "batch_years",
+                {
+                    "year_range": year_range,
+                    "department": department_code.upper(),
+                    "id": {"$ne": batch_id}
+                }
+            )
+            if duplicate_batch:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Batch year already exists for this department"
+                )
+        
+        # Prepare update data
+        update_data = {"updated_at": datetime.now(timezone.utc)}
+        if batch_data.year_range:
+            update_data["year_range"] = batch_data.year_range
+        if batch_data.department:
+            update_data["department"] = batch_data.department.upper()
+        if batch_data.sections is not None:
+            update_data["sections"] = batch_data.sections
+        
+        # Update batch year
+        await DatabaseOperations.update_one(
+            "batch_years",
+            {"id": batch_id},
+            {"$set": update_data}
+        )
+        
+        return APIResponse(
+            success=True,
+            message="Batch year updated successfully"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating batch year: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error updating batch year"
         )
 
 @router.get("/departments/{dept_id}/sections", response_model=APIResponse)
