@@ -302,25 +302,40 @@ const PrincipalDashboard = () => {
     }
     
     try {
-      // Find the batch year to get existing sections
-      const batchYear = batchYears.find(b => b.id === selectedBatchYear);
-      if (!batchYear) {
-        toast.error('Batch year not found');
-        return;
-      }
-      
-      // Merge existing sections with new sections
-      const existingSections = batchYear.sections || [];
-      const allSections = [...new Set([...existingSections, ...newSections])];
-      
-      const response = await apiService.updateBatchYear(selectedBatchYear, {
-        sections: allSections
-      });
+      // Use the new simple sections endpoint
+      const response = await apiService.addSectionsSimple(selectedBatchYear, newSections);
       if (response.success) {
         toast.success('Sections added successfully');
         setNewSections([]);
         setSelectedBatchYear('');
         setIsSectionsDialogOpen(false);
+        loadManagementData();
+      } else {
+        toast.error(response.message || 'Failed to add sections');
+      }
+    } catch (error) {
+      console.error('Error adding sections:', error);
+      toast.error('Failed to add sections');
+    }
+  };
+
+  // Alternative simple sections handler
+  const handleAddSectionsSimple = async () => {
+    if (!selectedBatchYear) {
+      toast.error('Please select batch year');
+      return;
+    }
+    
+    const sectionsInput = prompt('Enter sections separated by commas (e.g., A,B,C):');
+    if (!sectionsInput || sectionsInput.trim() === '') {
+      return;
+    }
+    
+    try {
+      const response = await apiService.addSectionsSimple(selectedBatchYear, sectionsInput.trim());
+      if (response.success) {
+        toast.success('Sections added successfully');
+        setSelectedBatchYear('');
         loadManagementData();
       } else {
         toast.error(response.message || 'Failed to add sections');
@@ -1139,7 +1154,7 @@ const PrincipalDashboard = () => {
                             <TableCell>
                               <Badge variant="outline">{dept.code}</Badge>
                             </TableCell>
-                            <TableCell>{dept.hod_name || 'Not Assigned'}</TableCell>
+                            <TableCell>{dept.hod?.name || 'Not Assigned'}</TableCell>
                             <TableCell>
                               <div className="flex gap-2">
                                 <Button 
@@ -1238,64 +1253,81 @@ const PrincipalDashboard = () => {
                     {/* Add Sections */}
                     <div>
                       <h3 className="text-lg font-semibold mb-4">Add Sections to Batch Year</h3>
-                      <Dialog open={isSectionsDialogOpen} onOpenChange={setIsSectionsDialogOpen}>
-                        <DialogTrigger asChild>
-                          <Button className="w-full">
-                            <Plus className="h-4 w-4 mr-2" />
-                            Manage Sections
-                          </Button>
-                        </DialogTrigger>
-                        <DialogContent>
-                          <DialogHeader>
-                            <DialogTitle>Add Sections to Batch Year</DialogTitle>
-                          </DialogHeader>
-                          <div className="space-y-4">
-                            <div>
-                              <Label htmlFor="select-batch">Select Batch Year</Label>
-                              <Select value={selectedBatchYear} onValueChange={setSelectedBatchYear}>
-                                <SelectTrigger>
-                                  <SelectValue placeholder="Select batch year" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {batchYears.map((batch) => (
-                                    <SelectItem key={batch.id} value={batch.id}>
-                                      {batch.year_range} {batch.department}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div>
-                              <Label>Sections</Label>
-                              <div className="flex flex-wrap gap-2 mb-2">
-                                {newSections.map((section) => (
-                                  <Badge key={section} variant="secondary" className="px-2 py-1">
-                                    Section {section}
-                                    <button 
-                                      type="button" 
-                                      className="ml-2 text-muted-foreground hover:text-foreground"
-                                      onClick={() => removeSection(section)}
-                                    >
-                                      ×
-                                    </button>
-                                  </Badge>
-                                ))}
+                      <div className="flex gap-2">
+                        <Dialog open={isSectionsDialogOpen} onOpenChange={setIsSectionsDialogOpen}>
+                          <DialogTrigger asChild>
+                            <Button className="flex-1">
+                              <Plus className="h-4 w-4 mr-2" />
+                              Manage Sections (Advanced)
+                            </Button>
+                          </DialogTrigger>
+                          <DialogContent>
+                            <DialogHeader>
+                              <DialogTitle>Add Sections to Batch Year</DialogTitle>
+                            </DialogHeader>
+                            <div className="space-y-4">
+                              <div>
+                                <Label htmlFor="select-batch">Select Batch Year</Label>
+                                <Select value={selectedBatchYear} onValueChange={setSelectedBatchYear}>
+                                  <SelectTrigger>
+                                    <SelectValue placeholder="Select batch year" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {batchYears.map((batch) => (
+                                      <SelectItem key={batch.id} value={batch.id}>
+                                        {batch.year_range} {batch.department}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
                               </div>
-                              <Button variant="outline" onClick={addSection} className="w-full">
-                                Add Section
-                              </Button>
+                              <div>
+                                <Label>Sections</Label>
+                                <div className="flex flex-wrap gap-2 mb-2">
+                                  {newSections.map((section) => (
+                                    <Badge key={section} variant="secondary" className="px-2 py-1">
+                                      Section {section}
+                                      <button 
+                                        type="button" 
+                                        className="ml-2 text-muted-foreground hover:text-foreground"
+                                        onClick={() => removeSection(section)}
+                                      >
+                                        ×
+                                      </button>
+                                    </Badge>
+                                  ))}
+                                </div>
+                                <Button variant="outline" onClick={addSection} className="w-full">
+                                  Add Section
+                                </Button>
+                              </div>
                             </div>
-                          </div>
-                          <DialogFooter>
-                            <Button variant="outline" onClick={() => setIsSectionsDialogOpen(false)}>
-                              Cancel
-                            </Button>
-                            <Button onClick={handleAddSections}>
-                              Add Sections
-                            </Button>
-                          </DialogFooter>
-                        </DialogContent>
-                      </Dialog>
+                            <DialogFooter>
+                              <Button variant="outline" onClick={() => setIsSectionsDialogOpen(false)}>
+                                Cancel
+                              </Button>
+                              <Button onClick={handleAddSections}>
+                                Add Sections
+                              </Button>
+                            </DialogFooter>
+                          </DialogContent>
+                        </Dialog>
+                        
+                        <Button 
+                          variant="outline" 
+                          onClick={() => {
+                            const batchId = prompt('Enter Batch Year ID to add sections:');
+                            if (batchId) {
+                              setSelectedBatchYear(batchId);
+                              handleAddSectionsSimple();
+                            }
+                          }}
+                          className="flex-1"
+                        >
+                          <Plus className="h-4 w-4 mr-2" />
+                          Quick Add Sections
+                        </Button>
+                      </div>
                     </div>
                   </div>
                   
@@ -1323,10 +1355,37 @@ const PrincipalDashboard = () => {
                                       {section}
                                     </Badge>
                                   ))}
+                                  {(!batch.sections || batch.sections.length === 0) && (
+                                    <Badge variant="secondary">No sections</Badge>
+                                  )}
                                 </div>
                               </TableCell>
                               <TableCell>
                                 <div className="flex gap-2">
+                                  <Button 
+                                    variant="outline" 
+                                    size="sm"
+                                    onClick={() => {
+                                      const sectionsInput = prompt(`Add sections to ${batch.year_range} ${batch.department} (e.g., A,B,C):`);
+                                      if (sectionsInput && sectionsInput.trim()) {
+                                        apiService.addSectionsSimple(batch.id, sectionsInput.trim())
+                                          .then(response => {
+                                            if (response.success) {
+                                              toast.success('Sections added successfully');
+                                              loadManagementData();
+                                            } else {
+                                              toast.error(response.message || 'Failed to add sections');
+                                            }
+                                          })
+                                          .catch(error => {
+                                            console.error('Error adding sections:', error);
+                                            toast.error('Failed to add sections');
+                                          });
+                                      }
+                                    }}
+                                  >
+                                    Add Sections
+                                  </Button>
                                   <Button 
                                     variant="outline" 
                                     size="sm"

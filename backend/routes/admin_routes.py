@@ -740,6 +740,80 @@ async def update_batch_year(
             detail="Error updating batch year"
         )
 
+@router.post("/batch-years/{batch_id}/sections-simple", response_model=APIResponse)
+async def add_sections_simple(
+    batch_id: str,
+    sections_data: Dict[str, Any],
+    principal: Any = Depends(get_current_principal)
+):
+    """Add sections to batch year using simple string format"""
+    try:
+        # Check if batch year exists
+        existing_batch = await DatabaseOperations.find_one(
+            "batch_years",
+            {"id": batch_id, "is_active": True}
+        )
+        if not existing_batch:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Batch year not found"
+            )
+        
+        # Parse sections from string format like "A,B,C" or from array
+        sections = []
+        if isinstance(sections_data.get("sections"), str):
+            # Handle string format "A,B,C"
+            sections_str = sections_data["sections"].strip()
+            if sections_str:
+                sections = [s.strip().upper() for s in sections_str.split(",") if s.strip()]
+        elif isinstance(sections_data.get("sections"), list):
+            # Handle array format ["A", "B", "C"]
+            sections = [s.upper() if isinstance(s, str) else str(s).upper() for s in sections_data["sections"]]
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Sections must be provided as string (A,B,C) or array"
+            )
+        
+        # Validate sections
+        valid_sections = ["A", "B", "C", "D"]
+        for section in sections:
+            if section not in valid_sections:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Invalid section '{section}'. Must be one of: {valid_sections}"
+                )
+        
+        # Remove duplicates while preserving order
+        sections = list(dict.fromkeys(sections))
+        
+        # Update sections in database
+        await DatabaseOperations.update_one(
+            "batch_years",
+            {"id": batch_id},
+            {
+                "$set": {
+                    "sections": sections,
+                    "updated_at": datetime.now(timezone.utc)
+                }
+            }
+        )
+        
+        return APIResponse(
+            success=True,
+            message=f"Sections {sections} added to batch year successfully",
+            data={"sections": sections}
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error adding sections to batch year: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error adding sections to batch year"
+        )
+
 @router.get("/departments/{dept_id}/sections", response_model=APIResponse)
 async def get_department_sections(
     dept_id: str,

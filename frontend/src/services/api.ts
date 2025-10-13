@@ -504,6 +504,16 @@ class ApiService {
     return this.handleResponse<ApiResponse>(response);
   }
 
+  async addSectionsSimple(batchId: string, sections: string | string[]) {
+    const response = await fetch(`${API_BASE_URL}/admin/batch-years/${batchId}/sections-simple`, {
+      method: 'POST',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify({ sections })
+    });
+
+    return this.handleResponse<ApiResponse>(response);
+  }
+
   async getDepartmentSections(deptId: string) {
     const response = await fetch(`${API_BASE_URL}/admin/departments/${deptId}/sections`, {
       headers: this.getAuthHeaders()
