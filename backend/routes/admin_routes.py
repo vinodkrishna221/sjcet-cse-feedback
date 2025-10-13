@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Depends, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from typing import List, Dict, Any, Optional
 import logging
+from datetime import datetime, timezone
 from models import (
     Admin, AdminCreate, Department, DepartmentCreate, BatchYear, BatchYearCreate,
     APIResponse, UserRole, Section, SectionsUpdate
@@ -193,7 +194,7 @@ async def update_hod(
             "email": hod_data.email,
             "phone": hod_data.phone,
             "department": hod_data.department,
-            "updated_at": DatabaseOperations.get_current_timestamp()
+            "updated_at": datetime.now(timezone.utc)
         }
         
         if hod_data.password:
@@ -264,7 +265,7 @@ async def deactivate_hod(
         await DatabaseOperations.update_one(
             "admins",
             {"id": hod_id},
-            {"$set": {"is_active": False, "updated_at": DatabaseOperations.get_current_timestamp()}}
+            {"$set": {"is_active": False, "updated_at": datetime.now(timezone.utc)}}
         )
         
         # Remove HOD from department
@@ -422,7 +423,7 @@ async def update_department(
             "name": department_data.name,
             "code": department_data.code.upper(),
             "description": department_data.description,
-            "updated_at": DatabaseOperations.get_current_timestamp()
+            "updated_at": datetime.now(timezone.utc)
         }
         
         await DatabaseOperations.update_one(
@@ -568,8 +569,8 @@ async def add_sections_to_batch_year(
             {"id": batch_id},
             {
                 "$set": {
-                    "sections": [section.value for section in sections_data.sections],
-                    "updated_at": DatabaseOperations.get_current_timestamp()
+                    "sections": sections_data.sections,
+                    "updated_at": datetime.now(timezone.utc)
                 }
             }
         )
