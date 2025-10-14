@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { LogOut, Eye, TrendingUp, Users, Star, BookOpen, Package, EyeOff } from "lucide-react";
+import { LogOut, Eye, TrendingUp, Star, BookOpen, Package, EyeOff } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { BundledFeedback, LegacyFeedbackData, FEEDBACK_QUESTIONS, Department, BatchYear, HODCreate } from "@/types/feedback";
@@ -27,12 +27,12 @@ const PrincipalDashboard = () => {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [batchYears, setBatchYears] = useState<BatchYear[]>([]);
   const [hods, setHODs] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [, setIsLoading] = useState(false);
   
   // Form states
   const [newDepartment, setNewDepartment] = useState({ name: '', code: '' });
   const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
-  const [newBatchYear, setNewBatchYear] = useState({ year_range: '', department: '' });
+  const [newBatchYear, setNewBatchYear] = useState({ year_range: '', department: '', sections: ['A', 'B', 'C'] as ('A' | 'B' | 'C' | 'D')[] });
   const [editingBatchYear, setEditingBatchYear] = useState<BatchYear | null>(null);
   const [newHOD, setNewHOD] = useState<HODCreate>({ 
     username: '', 
@@ -146,7 +146,7 @@ const PrincipalDashboard = () => {
       const response = await apiService.updateDepartment(editingDepartment.id, {
         name: editingDepartment.name,
         code: editingDepartment.code,
-        description: editingDepartment.description
+        ...(editingDepartment.description && { description: editingDepartment.description })
       });
       if (response.success) {
         toast.success('Department updated successfully');
@@ -195,10 +195,17 @@ const PrincipalDashboard = () => {
     }
     
     try {
-      const response = await apiService.createBatchYear(newBatchYear);
+      // Use the selected sections from the form
+      const batchDataWithSections = {
+        year_range: newBatchYear.year_range,
+        department: newBatchYear.department,
+        sections: newBatchYear.sections
+      };
+      
+      const response = await apiService.createBatchYear(batchDataWithSections);
       if (response.success) {
-        toast.success('Batch year created successfully');
-        setNewBatchYear({ year_range: '', department: '' });
+        toast.success(`Batch year created successfully with sections ${newBatchYear.sections.join(', ')}`);
+        setNewBatchYear({ year_range: '', department: '', sections: ['A', 'B', 'C'] });
         setIsBatchYearDialogOpen(false);
         loadManagementData();
       } else {
@@ -436,7 +443,6 @@ const PrincipalDashboard = () => {
   ];
 
   const totalFeedback = allFeedbackItems.length;
-  const totalStudents = bundledFeedback.length + feedbackData.length; // Approximate unique students
   const averageRating = totalFeedback > 0 
     ? (allFeedbackItems.reduce((sum, item) => sum + item.rating, 0) / totalFeedback).toFixed(1)
     : '0';
@@ -445,27 +451,31 @@ const PrincipalDashboard = () => {
   const sectionB = allFeedbackItems.filter(item => item.studentSection === 'B').length;
 
   // Subject performance analysis
-  const subjectPerformance = allFeedbackItems.reduce((acc, item) => {
-    if (!acc[item.subject]) {
-      acc[item.subject] = { total: 0, count: 0, ratings: [] };
+  const subjectPerformance: Record<string, { total: number; count: number; ratings: number[] }> = {};
+  allFeedbackItems.forEach(item => {
+    const subject = item.subject;
+    if (!subjectPerformance[subject]) {
+      subjectPerformance[subject] = { total: 0, count: 0, ratings: [] };
     }
-    acc[item.subject].total += item.rating;
-    acc[item.subject].count += 1;
-    acc[item.subject].ratings.push(item.rating);
-    return acc;
-  }, {} as Record<string, { total: number; count: number; ratings: number[] }>);
+    const subjectData = subjectPerformance[subject];
+    subjectData.total += item.rating;
+    subjectData.count += 1;
+    subjectData.ratings.push(item.rating);
+  });
 
   // Faculty performance analysis
-  const facultyPerformance = allFeedbackItems.reduce((acc, item) => {
-    if (!acc[item.faculty]) {
-      acc[item.faculty] = { total: 0, count: 0, ratings: [], subjects: new Set() };
+  const facultyPerformance: Record<string, { total: number; count: number; ratings: number[]; subjects: Set<string> }> = {};
+  allFeedbackItems.forEach(item => {
+    const faculty = item.faculty;
+    if (!facultyPerformance[faculty]) {
+      facultyPerformance[faculty] = { total: 0, count: 0, ratings: [], subjects: new Set() };
     }
-    acc[item.faculty].total += item.rating;
-    acc[item.faculty].count += 1;
-    acc[item.faculty].ratings.push(item.rating);
-    acc[item.faculty].subjects.add(item.subject);
-    return acc;
-  }, {} as Record<string, { total: number; count: number; ratings: number[]; subjects: Set<string> }>);
+    const facultyData = facultyPerformance[faculty];
+    facultyData.total += item.rating;
+    facultyData.count += 1;
+    facultyData.ratings.push(item.rating);
+    facultyData.subjects.add(item.subject);
+  });
 
   // Department performance metrics
   const excellentRatings = allFeedbackItems.filter(item => item.rating >= 8).length;
@@ -992,6 +1002,9 @@ const PrincipalDashboard = () => {
                                   ))}
                                 </SelectContent>
                               </Select>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Assigning an HOD to a department will automatically link them in the department management
+                              </p>
                             </div>
                           </div>
                           <div className="grid grid-cols-2 gap-4">
@@ -1154,7 +1167,14 @@ const PrincipalDashboard = () => {
                             <TableCell>
                               <Badge variant="outline">{dept.code}</Badge>
                             </TableCell>
-                            <TableCell>{dept.hod?.name || 'Not Assigned'}</TableCell>
+                            <TableCell>
+                              {dept.hod?.name || 'Not Assigned'}
+                              {dept.hod && (
+                                <div className="text-xs text-muted-foreground">
+                                  ({dept.hod.username})
+                                </div>
+                              )}
+                            </TableCell>
                             <TableCell>
                               <div className="flex gap-2">
                                 <Button 
@@ -1236,6 +1256,37 @@ const PrincipalDashboard = () => {
                                   ))}
                                 </SelectContent>
                               </Select>
+                            </div>
+                            <div>
+                              <Label>Sections (Automatically assigned A, B, C - you can modify)</Label>
+                              <div className="flex gap-2 flex-wrap mt-2">
+                                {['A', 'B', 'C', 'D'].map((section) => (
+                                  <label key={section} className="flex items-center space-x-2">
+                                    <input
+                                      type="checkbox"
+                                      checked={newBatchYear.sections.includes(section as 'A' | 'B' | 'C' | 'D')}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          setNewBatchYear(prev => ({
+                                            ...prev,
+                                            sections: [...prev.sections, section as 'A' | 'B' | 'C' | 'D']
+                                          }));
+                                        } else {
+                                          setNewBatchYear(prev => ({
+                                            ...prev,
+                                            sections: prev.sections.filter(s => s !== section)
+                                          }));
+                                        }
+                                      }}
+                                      className="rounded"
+                                    />
+                                    <span className="text-sm">Section {section}</span>
+                                  </label>
+                                ))}
+                              </div>
+                              <p className="text-xs text-muted-foreground mt-1">
+                                Sections A, B, C are automatically selected. You can modify this selection as needed.
+                              </p>
                             </div>
                           </div>
                           <DialogFooter>
@@ -1466,7 +1517,7 @@ const PrincipalDashboard = () => {
               <Input
                 id="edit-hod-username"
                 value={editingHOD?.username || ''}
-                onChange={(e) => setEditingHOD(prev => prev ? {...prev, username: e.target.value} : null)}
+                onChange={(e) => setEditingHOD((prev: any) => prev ? {...prev, username: e.target.value} : null)}
                 placeholder="Enter username"
               />
             </div>
@@ -1477,7 +1528,7 @@ const PrincipalDashboard = () => {
                   id="edit-hod-password"
                   type={showPassword ? "text" : "password"}
                   value={editingHOD?.password || ''}
-                  onChange={(e) => setEditingHOD(prev => prev ? {...prev, password: e.target.value} : null)}
+                  onChange={(e) => setEditingHOD((prev: any) => prev ? {...prev, password: e.target.value} : null)}
                   placeholder="Enter new password (leave blank to keep current)"
                 />
                 <Button
@@ -1496,7 +1547,7 @@ const PrincipalDashboard = () => {
               <Input
                 id="edit-hod-name"
                 value={editingHOD?.name || ''}
-                onChange={(e) => setEditingHOD(prev => prev ? {...prev, name: e.target.value} : null)}
+                onChange={(e) => setEditingHOD((prev: any) => prev ? {...prev, name: e.target.value} : null)}
                 placeholder="Enter full name"
               />
             </div>
@@ -1504,7 +1555,7 @@ const PrincipalDashboard = () => {
               <Label htmlFor="edit-hod-department">Department</Label>
               <Select 
                 value={editingHOD?.department || ''} 
-                onValueChange={(value) => setEditingHOD(prev => prev ? {...prev, department: value} : null)}
+                onValueChange={(value) => setEditingHOD((prev: any) => prev ? {...prev, department: value} : null)}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Select department" />
@@ -1524,7 +1575,7 @@ const PrincipalDashboard = () => {
                 id="edit-hod-email"
                 type="email"
                 value={editingHOD?.email || ''}
-                onChange={(e) => setEditingHOD(prev => prev ? {...prev, email: e.target.value} : null)}
+                onChange={(e) => setEditingHOD((prev: any) => prev ? {...prev, email: e.target.value} : null)}
                 placeholder="Enter email address"
               />
             </div>
@@ -1533,7 +1584,7 @@ const PrincipalDashboard = () => {
               <Input
                 id="edit-hod-phone"
                 value={editingHOD?.phone || ''}
-                onChange={(e) => setEditingHOD(prev => prev ? {...prev, phone: e.target.value} : null)}
+                onChange={(e) => setEditingHOD((prev: any) => prev ? {...prev, phone: e.target.value} : null)}
                 placeholder="Enter phone number"
               />
             </div>
@@ -1593,7 +1644,7 @@ const PrincipalDashboard = () => {
                       variant="ghost"
                       size="sm"
                       className="h-4 w-4 p-0"
-                      onClick={() => setEditingBatchYear(prev => prev ? {
+                      onClick={() => setEditingBatchYear((prev: BatchYear | null) => prev ? {
                         ...prev,
                         sections: prev.sections?.filter(s => s !== section) || []
                       } : null)}
@@ -1609,11 +1660,11 @@ const PrincipalDashboard = () => {
                 onClick={() => {
                   const section = prompt('Enter section letter (A, B, C, D):');
                   if (section && ['A', 'B', 'C', 'D'].includes(section.toUpperCase())) {
-                    const upperSection = section.toUpperCase();
+                    const upperSection = section.toUpperCase() as 'A' | 'B' | 'C' | 'D';
                     if (!editingBatchYear?.sections?.includes(upperSection)) {
-                      setEditingBatchYear(prev => prev ? {
+                      setEditingBatchYear((prev: BatchYear | null) => prev ? {
                         ...prev,
-                        sections: [...(prev.sections || []), upperSection]
+                        sections: [...(prev.sections || []), upperSection] as ('A' | 'B' | 'C' | 'D')[]
                       } : null);
                     } else {
                       toast.error('Section already added');
