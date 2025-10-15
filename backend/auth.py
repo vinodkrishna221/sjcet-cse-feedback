@@ -37,7 +37,7 @@ SECRET_KEY = os.environ.get("SECRET_KEY")
 if not SECRET_KEY:
     raise ValueError("SECRET_KEY environment variable is required for security")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", "120"))  # 2 hours default
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", "4320"))  # 3 days default
 REFRESH_TOKEN_EXPIRE_DAYS = int(os.environ.get("REFRESH_TOKEN_EXPIRE_DAYS", "7"))  # 7 days default
 
 class AuthService:
@@ -77,6 +77,21 @@ class AuthService:
         to_encode.update({"exp": expire, "type": "refresh"})
         encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
         return encoded_jwt
+    
+    @staticmethod
+    def decode_refresh_token(token: str) -> Optional[Dict[str, Any]]:
+        """Decode JWT refresh token"""
+        try:
+            payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+            if payload.get("type") != "refresh":
+                return None
+            return payload
+        except jwt.ExpiredSignatureError:
+            logger.warning("Refresh token has expired")
+            return None
+        except jwt.JWTError as e:
+            logger.warning(f"JWT decode error: {e}")
+            return None
     
     @staticmethod
     def decode_access_token(token: str) -> Optional[Dict[str, Any]]:

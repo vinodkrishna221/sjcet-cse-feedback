@@ -88,8 +88,32 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error('Invalid token response');
       }
     } catch (error) {
-      // Token is invalid, clear storage
-      logout();
+      // Try to refresh token if verification fails
+      try {
+        console.log('Token verification failed, attempting refresh...');
+        await apiService.refreshToken();
+        // Retry verification with new token
+        const response = await apiService.verifyToken();
+        if (response.success && response.data) {
+          const userData: User = {
+            id: response.data.user.id,
+            role: response.data.user.role,
+            name: response.data.user.name,
+            section: response.data.user.section,
+            regNumber: response.data.user.regNumber,
+            email: response.data.user.email,
+            phone: response.data.user.phone
+          };
+          setUser(userData);
+          localStorage.setItem('feedbackPortalUser', JSON.stringify(userData));
+          return userData;
+        }
+      } catch (refreshError) {
+        console.log('Token refresh failed:', refreshError);
+        // Both verification and refresh failed, logout user
+        logout();
+        throw error;
+      }
       throw error;
     }
   };
@@ -152,6 +176,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
     localStorage.removeItem('feedbackPortalUser');
     localStorage.removeItem('authToken');
+    localStorage.removeItem('refreshToken');
     apiService.logout();
   };
 

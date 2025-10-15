@@ -119,7 +119,7 @@ const PrincipalDashboard = () => {
       const departmentData = {
         name: newDepartment.name,
         code: newDepartment.code,
-        ...(newDepartment.hod_id && { hod_id: newDepartment.hod_id })
+        ...(newDepartment.hod_id && newDepartment.hod_id !== 'none' && { hod_id: newDepartment.hod_id })
       };
       
       const response = await apiService.createDepartment(departmentData);
@@ -153,7 +153,7 @@ const PrincipalDashboard = () => {
         name: editingDepartment.name,
         code: editingDepartment.code,
         ...(editingDepartment.description && { description: editingDepartment.description }),
-        ...(editingDepartment.hod_id && { hod_id: editingDepartment.hod_id })
+        ...(editingDepartment.hod_id && editingDepartment.hod_id !== 'none' && { hod_id: editingDepartment.hod_id })
       };
       
       const response = await apiService.updateDepartment(editingDepartment.id, departmentData);
@@ -1153,7 +1153,7 @@ const PrincipalDashboard = () => {
                                 <SelectValue placeholder="Select HOD to assign" />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="">No HOD assigned</SelectItem>
+                                <SelectItem value="none">No HOD assigned</SelectItem>
                                 {hods.map((hod) => (
                                   <SelectItem key={hod.id} value={hod.id}>
                                     {hod.name} ({hod.username})
@@ -1531,7 +1531,7 @@ const PrincipalDashboard = () => {
                   <SelectValue placeholder="Select HOD to assign" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">No HOD assigned</SelectItem>
+                  <SelectItem value="none">No HOD assigned</SelectItem>
                   {hods.map((hod) => (
                     <SelectItem key={hod.id} value={hod.id}>
                       {hod.name} ({hod.username})

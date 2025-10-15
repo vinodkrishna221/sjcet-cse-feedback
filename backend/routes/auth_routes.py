@@ -44,7 +44,7 @@ async def admin_login(credentials: AdminLogin):
                 "access_token": access_token,
                 "refresh_token": refresh_token,
                 "token_type": "bearer",
-                "expires_in": 7200  # 2 hours in seconds
+                "expires_in": 259200  # 3 days in seconds (4320 minutes)
             }
         )
         
@@ -92,7 +92,7 @@ async def student_login(credentials: StudentLogin):
                 "access_token": access_token,
                 "refresh_token": refresh_token,
                 "token_type": "bearer",
-                "expires_in": 7200  # 2 hours in seconds
+                "expires_in": 259200  # 3 days in seconds (4320 minutes)
             }
         )
         
@@ -103,6 +103,57 @@ async def student_login(credentials: StudentLogin):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Internal server error during login"
+        )
+
+@router.post("/refresh-token", response_model=APIResponse)
+async def refresh_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Refresh access token using refresh token"""
+    try:
+        if not credentials or not credentials.credentials:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh token required"
+            )
+        
+        # Decode refresh token
+        payload = AuthService.decode_refresh_token(credentials.credentials)
+        if not payload:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid refresh token"
+            )
+        
+        user_id = payload.get("sub")
+        user_role = payload.get("role")
+        
+        if not user_id or not user_role:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid token payload"
+            )
+        
+        # Create new access token
+        new_access_token = AuthService.create_access_token(
+            data={"sub": user_id, "role": user_role}
+        )
+        
+        return APIResponse(
+            success=True,
+            message="Token refreshed successfully",
+            data={
+                "access_token": new_access_token,
+                "token_type": "bearer",
+                "expires_in": 259200  # 3 days in seconds
+            }
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Token refresh error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Internal server error during token refresh"
         )
 
 @router.post("/verify-token", response_model=APIResponse)

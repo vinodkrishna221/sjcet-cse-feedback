@@ -49,6 +49,16 @@ class ApiService {
           errorMessage = Object.values(data.errors).flat().join(', ');
         }
       }
+      
+      // Log detailed error information for debugging
+      console.error('API Error Details:', {
+        status: response.status,
+        statusText: response.statusText,
+        url: response.url,
+        data: data,
+        errorMessage: errorMessage
+      });
+      
       throw new Error(errorMessage);
     }
     
@@ -67,9 +77,12 @@ class ApiService {
 
     const result = await this.handleResponse<ApiResponse>(response);
     
-    // Store auth token if provided
+    // Store auth tokens if provided
     if (result.data?.access_token) {
       localStorage.setItem('authToken', result.data.access_token);
+    }
+    if (result.data?.refresh_token) {
+      localStorage.setItem('refreshToken', result.data.refresh_token);
     }
     
     return result;
@@ -87,9 +100,12 @@ class ApiService {
 
     const result = await this.handleResponse<ApiResponse>(response);
     
-    // Store auth token if provided
+    // Store auth tokens if provided
     if (result.data?.access_token) {
       localStorage.setItem('authToken', result.data.access_token);
+    }
+    if (result.data?.refresh_token) {
+      localStorage.setItem('refreshToken', result.data.refresh_token);
     }
     
     return result;
@@ -150,6 +166,31 @@ class ApiService {
     });
 
     return this.handleResponse<ApiResponse>(response);
+  }
+
+  // Refresh token
+  async refreshToken() {
+    const refreshToken = localStorage.getItem('refreshToken');
+    if (!refreshToken) {
+      throw new Error('No refresh token available');
+    }
+    
+    const response = await fetch(`${API_BASE_URL}/auth/refresh-token`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${refreshToken}`
+      }
+    });
+
+    const result = await this.handleResponse<ApiResponse>(response);
+    
+    // Store new access token
+    if (result.data?.access_token) {
+      localStorage.setItem('authToken', result.data.access_token);
+    }
+    
+    return result;
   }
 
   // Verify token
@@ -390,11 +431,15 @@ class ApiService {
   }
 
   async deleteHOD(hodId: string) {
+    console.log('Deleting HOD:', hodId);
+    console.log('Auth token:', localStorage.getItem('authToken'));
+    
     const response = await fetch(`${API_BASE_URL}/admin/hods/${hodId}`, {
       method: 'DELETE',
       headers: this.getAuthHeaders()
     });
 
+    console.log('Delete HOD response:', response.status, response.statusText);
     return this.handleResponse<ApiResponse>(response);
   }
 
@@ -403,6 +448,7 @@ class ApiService {
     name: string;
     code: string;
     description?: string;
+    hod_id?: string;
   }) {
     const response = await fetch(`${API_BASE_URL}/admin/departments`, {
       method: 'POST',
@@ -425,6 +471,7 @@ class ApiService {
     name: string;
     code: string;
     description?: string;
+    hod_id?: string;
   }) {
     const response = await fetch(`${API_BASE_URL}/admin/departments/${deptId}`, {
       method: 'PUT',
@@ -436,11 +483,15 @@ class ApiService {
   }
 
   async deleteDepartment(deptId: string) {
+    console.log('Deleting department:', deptId);
+    console.log('Auth token:', localStorage.getItem('authToken'));
+    
     const response = await fetch(`${API_BASE_URL}/admin/departments/${deptId}`, {
       method: 'DELETE',
       headers: this.getAuthHeaders()
     });
 
+    console.log('Delete department response:', response.status, response.statusText);
     return this.handleResponse<ApiResponse>(response);
   }
 
@@ -496,11 +547,15 @@ class ApiService {
   }
 
   async deleteBatchYear(batchId: string) {
+    console.log('Deleting batch year:', batchId);
+    console.log('Auth token:', localStorage.getItem('authToken'));
+    
     const response = await fetch(`${API_BASE_URL}/admin/batch-years/${batchId}`, {
       method: 'DELETE',
       headers: this.getAuthHeaders()
     });
 
+    console.log('Delete batch year response:', response.status, response.statusText);
     return this.handleResponse<ApiResponse>(response);
   }
 
@@ -581,6 +636,7 @@ class ApiService {
   // Logout
   logout() {
     localStorage.removeItem('authToken');
+    localStorage.removeItem('refreshToken');
   }
 }
 

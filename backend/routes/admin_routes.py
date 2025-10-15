@@ -35,6 +35,15 @@ async def get_current_admin_or_hod(credentials: HTTPAuthorizationCredentials = D
         )
     return admin
 
+@router.get("/test-auth", response_model=APIResponse)
+async def test_auth(principal: Any = Depends(get_current_principal)):
+    """Test endpoint to verify authentication is working"""
+    return APIResponse(
+        success=True,
+        message="Authentication working",
+        data={"user_id": principal.id, "role": principal.role}
+    )
+
 # HOD Management Endpoints
 @router.post("/hods", response_model=APIResponse)
 async def create_hod(
