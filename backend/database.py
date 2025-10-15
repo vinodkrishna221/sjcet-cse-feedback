@@ -171,10 +171,12 @@ class DatabaseOperations:
     async def update_by_id(collection: str, document_id: str, update_dict: Dict[str, Any]) -> bool:
         """Update document by ID, trying both custom id and MongoDB _id"""
         db = get_database()
-        update_dict['updated_at'] = datetime.now(timezone.utc)
+        
+        # Create the update document with $set operator
+        update_operation = {"$set": {**update_dict, "updated_at": datetime.now(timezone.utc)}}
         
         # First try custom id field
-        result = await db[collection].update_one({"id": document_id}, {"$set": update_dict})
+        result = await db[collection].update_one({"id": document_id}, update_operation)
         if result.modified_count > 0:
             return True
         
@@ -182,10 +184,17 @@ class DatabaseOperations:
         if len(document_id) == 24 and document_id.replace('-', '').replace('_', '').isalnum():
             try:
                 from bson import ObjectId
-                result = await db[collection].update_one({"_id": ObjectId(document_id)}, {"$set": update_dict})
+                result = await db[collection].update_one({"_id": ObjectId(document_id)}, update_operation)
                 return result.modified_count > 0
             except Exception:
                 pass
+        
+        # For UUIDs, try direct _id lookup (some UUIDs might be stored as _id)
+        try:
+            result = await db[collection].update_one({"_id": document_id}, update_operation)
+            return result.modified_count > 0
+        except Exception:
+            pass
         
         return False
     
