@@ -269,23 +269,33 @@ async def deactivate_hod(
 ):
     """Deactivate HOD account"""
     try:
+        logger.info(f"Attempting to delete HOD with ID: {hod_id}")
+        
         # Check if HOD exists
-        existing_hod = await DatabaseOperations.find_one(
-            "admins",
-            {"id": hod_id, "role": "hod"}
-        )
-        if not existing_hod:
+        existing_hod = await DatabaseOperations.find_by_id("admins", hod_id)
+        
+        logger.info(f"Found HOD: {existing_hod}")
+        
+        if not existing_hod or existing_hod.get("role") != "hod":
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="HOD not found"
             )
         
-        # Deactivate HOD
-        await DatabaseOperations.update_one(
+        # Deactivate HOD using the helper method
+        delete_result = await DatabaseOperations.update_by_id(
             "admins",
-            {"id": hod_id},
-            {"$set": {"is_active": False, "updated_at": datetime.now(timezone.utc)}}
+            hod_id,
+            {"is_active": False}
         )
+        
+        logger.info(f"Delete result: {delete_result}")
+        
+        if not delete_result:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to delete HOD"
+            )
         
         # Remove HOD from department
         if existing_hod.get("department"):
@@ -498,11 +508,13 @@ async def delete_department(
 ):
     """Soft delete a department"""
     try:
+        logger.info(f"Attempting to delete department with ID: {dept_id}")
+        
         # Check if department exists
-        existing_dept = await DatabaseOperations.find_one(
-            "departments",
-            {"id": dept_id, "is_active": True}
-        )
+        existing_dept = await DatabaseOperations.find_by_id("departments", dept_id)
+        
+        logger.info(f"Found department: {existing_dept}")
+        
         if not existing_dept:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -531,12 +543,20 @@ async def delete_department(
                 detail="Cannot delete department with active batch years. Please delete batch years first."
             )
         
-        # Soft delete department
-        await DatabaseOperations.update_one(
+        # Soft delete department using the helper method
+        delete_result = await DatabaseOperations.update_by_id(
             "departments",
-            {"id": dept_id},
-            {"$set": {"is_active": False, "updated_at": datetime.now(timezone.utc)}}
+            dept_id,
+            {"is_active": False}
         )
+        
+        logger.info(f"Delete result: {delete_result}")
+        
+        if not delete_result:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to delete department"
+            )
         
         return APIResponse(
             success=True,
@@ -856,11 +876,13 @@ async def delete_batch_year(
 ):
     """Soft delete a batch year"""
     try:
+        logger.info(f"Attempting to delete batch year with ID: {batch_id}")
+        
         # Check if batch year exists
-        existing_batch = await DatabaseOperations.find_one(
-            "batch_years",
-            {"id": batch_id, "is_active": True}
-        )
+        existing_batch = await DatabaseOperations.find_by_id("batch_years", batch_id)
+        
+        logger.info(f"Found batch year: {existing_batch}")
+        
         if not existing_batch:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
@@ -878,12 +900,20 @@ async def delete_batch_year(
                 detail="Cannot delete batch year with active students. Please remove students first."
             )
         
-        # Soft delete batch year
-        await DatabaseOperations.update_one(
+        # Soft delete batch year using the helper method
+        delete_result = await DatabaseOperations.update_by_id(
             "batch_years",
-            {"id": batch_id},
-            {"$set": {"is_active": False, "updated_at": datetime.now(timezone.utc)}}
+            batch_id,
+            {"is_active": False}
         )
+        
+        logger.info(f"Delete result: {delete_result}")
+        
+        if not delete_result:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Failed to delete batch year"
+            )
         
         return APIResponse(
             success=True,
@@ -897,6 +927,36 @@ async def delete_batch_year(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error deleting batch year"
+        )
+
+@router.get("/debug/batch-years", response_model=APIResponse)
+async def debug_batch_years(principal: Any = Depends(get_current_principal)):
+    """Debug endpoint to see all batch years and their IDs"""
+    try:
+        all_batches = await DatabaseOperations.find_many("batch_years", {})
+        
+        debug_info = []
+        for batch in all_batches:
+            debug_info.append({
+                "id": batch.get("id"),
+                "_id": str(batch.get("_id")),
+                "year_range": batch.get("year_range"),
+                "department": batch.get("department"),
+                "is_active": batch.get("is_active"),
+                "created_at": batch.get("created_at")
+            })
+        
+        return APIResponse(
+            success=True,
+            message="Debug info retrieved",
+            data={"batch_years": debug_info}
+        )
+        
+    except Exception as e:
+        logger.error(f"Debug error: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Debug failed"
         )
 
 @router.get("/departments/{dept_id}/sections", response_model=APIResponse)

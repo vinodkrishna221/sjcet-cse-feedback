@@ -144,6 +144,71 @@ class DatabaseOperations:
         db = get_database()
         cursor = db[collection].aggregate(pipeline)
         return await cursor.to_list(length=None)
+    
+    @staticmethod
+    async def find_by_id(collection: str, document_id: str) -> Optional[Dict[str, Any]]:
+        """Find document by ID, trying both custom id and MongoDB _id"""
+        db = get_database()
+        
+        # First try custom id field
+        doc = await db[collection].find_one({"id": document_id})
+        if doc:
+            return doc
+        
+        # If not found and looks like ObjectId, try _id
+        if len(document_id) == 24 and document_id.replace('-', '').replace('_', '').isalnum():
+            try:
+                from bson import ObjectId
+                doc = await db[collection].find_one({"_id": ObjectId(document_id)})
+                if doc:
+                    return doc
+            except Exception:
+                pass
+        
+        return None
+    
+    @staticmethod
+    async def update_by_id(collection: str, document_id: str, update_dict: Dict[str, Any]) -> bool:
+        """Update document by ID, trying both custom id and MongoDB _id"""
+        db = get_database()
+        update_dict['updated_at'] = datetime.now(timezone.utc)
+        
+        # First try custom id field
+        result = await db[collection].update_one({"id": document_id}, {"$set": update_dict})
+        if result.modified_count > 0:
+            return True
+        
+        # If not found and looks like ObjectId, try _id
+        if len(document_id) == 24 and document_id.replace('-', '').replace('_', '').isalnum():
+            try:
+                from bson import ObjectId
+                result = await db[collection].update_one({"_id": ObjectId(document_id)}, {"$set": update_dict})
+                return result.modified_count > 0
+            except Exception:
+                pass
+        
+        return False
+    
+    @staticmethod
+    async def delete_by_id(collection: str, document_id: str) -> bool:
+        """Delete document by ID, trying both custom id and MongoDB _id"""
+        db = get_database()
+        
+        # First try custom id field
+        result = await db[collection].delete_one({"id": document_id})
+        if result.deleted_count > 0:
+            return True
+        
+        # If not found and looks like ObjectId, try _id
+        if len(document_id) == 24 and document_id.replace('-', '').replace('_', '').isalnum():
+            try:
+                from bson import ObjectId
+                result = await db[collection].delete_one({"_id": ObjectId(document_id)})
+                return result.deleted_count > 0
+            except Exception:
+                pass
+        
+        return False
 
 # Analytics helper functions
 class AnalyticsOperations:
