@@ -30,7 +30,7 @@ const PrincipalDashboard = () => {
   const [, setIsLoading] = useState(false);
   
   // Form states
-  const [newDepartment, setNewDepartment] = useState({ name: '', code: '' });
+  const [newDepartment, setNewDepartment] = useState({ name: '', code: '', hod_id: '' });
   const [editingDepartment, setEditingDepartment] = useState<Department | null>(null);
   const [newBatchYear, setNewBatchYear] = useState({ year_range: '', department: '', sections: ['A', 'B', 'C'] as ('A' | 'B' | 'C' | 'D')[] });
   const [editingBatchYear, setEditingBatchYear] = useState<BatchYear | null>(null);
@@ -116,10 +116,16 @@ const PrincipalDashboard = () => {
     }
     
     try {
-      const response = await apiService.createDepartment(newDepartment);
+      const departmentData = {
+        name: newDepartment.name,
+        code: newDepartment.code,
+        ...(newDepartment.hod_id && { hod_id: newDepartment.hod_id })
+      };
+      
+      const response = await apiService.createDepartment(departmentData);
       if (response.success) {
         toast.success('Department created successfully');
-        setNewDepartment({ name: '', code: '' });
+        setNewDepartment({ name: '', code: '', hod_id: '' });
         setIsDepartmentDialogOpen(false);
         loadManagementData();
       } else {
@@ -143,11 +149,14 @@ const PrincipalDashboard = () => {
     }
     
     try {
-      const response = await apiService.updateDepartment(editingDepartment.id, {
+      const departmentData = {
         name: editingDepartment.name,
         code: editingDepartment.code,
-        ...(editingDepartment.description && { description: editingDepartment.description })
-      });
+        ...(editingDepartment.description && { description: editingDepartment.description }),
+        ...(editingDepartment.hod_id && { hod_id: editingDepartment.hod_id })
+      };
+      
+      const response = await apiService.updateDepartment(editingDepartment.id, departmentData);
       if (response.success) {
         toast.success('Department updated successfully');
         setEditingDepartment(null);
@@ -1137,6 +1146,25 @@ const PrincipalDashboard = () => {
                               placeholder="e.g., CSE"
                             />
                           </div>
+                          <div>
+                            <Label htmlFor="dept-hod">Assign HOD (Optional)</Label>
+                            <Select value={newDepartment.hod_id} onValueChange={(value) => setNewDepartment(prev => ({ ...prev, hod_id: value }))}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select HOD to assign" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="">No HOD assigned</SelectItem>
+                                {hods.map((hod) => (
+                                  <SelectItem key={hod.id} value={hod.id}>
+                                    {hod.name} ({hod.username})
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              You can assign an existing HOD or create one later
+                            </p>
+                          </div>
                         </div>
                         <DialogFooter>
                           <Button variant="outline" onClick={() => setIsDepartmentDialogOpen(false)}>
@@ -1492,6 +1520,28 @@ const PrincipalDashboard = () => {
                 onChange={(e) => setEditingDepartment(prev => prev ? {...prev, code: e.target.value} : null)}
                 placeholder="e.g., CSE"
               />
+            </div>
+            <div>
+              <Label htmlFor="edit-dept-hod">Assign HOD (Optional)</Label>
+              <Select 
+                value={editingDepartment?.hod_id || ''} 
+                onValueChange={(value) => setEditingDepartment(prev => prev ? {...prev, hod_id: value} : null)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select HOD to assign" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">No HOD assigned</SelectItem>
+                  {hods.map((hod) => (
+                    <SelectItem key={hod.id} value={hod.id}>
+                      {hod.name} ({hod.username})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground mt-1">
+                You can assign an existing HOD or create one later
+              </p>
             </div>
           </div>
           <DialogFooter>

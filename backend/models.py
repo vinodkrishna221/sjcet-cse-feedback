@@ -231,6 +231,7 @@ class DepartmentCreate(BaseModel):
     name: str = Field(..., min_length=2, max_length=100)
     code: str = Field(..., min_length=2, max_length=10)
     description: Optional[str] = None
+    hod_id: Optional[str] = None
 
 class BatchYear(BaseDocument):
     year_range: str = Field(..., min_length=9, max_length=9)  # Format: "2024-2028"

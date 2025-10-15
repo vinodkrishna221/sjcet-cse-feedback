@@ -319,11 +319,24 @@ async def create_department(
                 detail="Department code already exists"
             )
         
+        # Validate HOD if provided
+        if department_data.hod_id:
+            hod = await DatabaseOperations.find_one(
+                "admins",
+                {"id": department_data.hod_id, "role": "hod", "is_active": True}
+            )
+            if not hod:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid HOD ID"
+                )
+        
         # Create department
         department = Department(
             name=department_data.name,
             code=department_data.code.upper(),
-            description=department_data.description
+            description=department_data.description,
+            hod_id=department_data.hod_id
         )
         
         dept_dict = department.dict()
@@ -428,11 +441,24 @@ async def update_department(
                     detail="Department code already exists"
                 )
         
+        # Validate HOD if provided
+        if department_data.hod_id:
+            hod = await DatabaseOperations.find_one(
+                "admins",
+                {"id": department_data.hod_id, "role": "hod", "is_active": True}
+            )
+            if not hod:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Invalid HOD ID"
+                )
+        
         # Update department
         update_data = {
             "name": department_data.name,
             "code": department_data.code.upper(),
             "description": department_data.description,
+            "hod_id": department_data.hod_id,
             "updated_at": datetime.now(timezone.utc)
         }
         
@@ -812,6 +838,56 @@ async def add_sections_simple(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error adding sections to batch year"
+        )
+
+@router.delete("/batch-years/{batch_id}", response_model=APIResponse)
+async def delete_batch_year(
+    batch_id: str,
+    principal: Any = Depends(get_current_principal)
+):
+    """Soft delete a batch year"""
+    try:
+        # Check if batch year exists
+        existing_batch = await DatabaseOperations.find_one(
+            "batch_years",
+            {"id": batch_id, "is_active": True}
+        )
+        if not existing_batch:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Batch year not found"
+            )
+        
+        # Check if batch year has active students
+        active_students = await DatabaseOperations.find_one(
+            "students",
+            {"batch_year": existing_batch["year_range"], "department": existing_batch["department"], "is_active": True}
+        )
+        if active_students:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Cannot delete batch year with active students. Please remove students first."
+            )
+        
+        # Soft delete batch year
+        await DatabaseOperations.update_one(
+            "batch_years",
+            {"id": batch_id},
+            {"$set": {"is_active": False, "updated_at": datetime.now(timezone.utc)}}
+        )
+        
+        return APIResponse(
+            success=True,
+            message="Batch year deleted successfully"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error deleting batch year: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error deleting batch year"
         )
 
 @router.get("/departments/{dept_id}/sections", response_model=APIResponse)

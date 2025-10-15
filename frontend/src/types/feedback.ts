@@ -52,6 +52,7 @@ export interface Department {
   name: string;
   code: string;
   description?: string;
+  hod_id?: string;
   hod?: {
     id: string;
     name: string;
