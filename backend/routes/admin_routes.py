@@ -859,7 +859,7 @@ async def get_all_batch_years(
         # For HOD role, ALWAYS enforce their department
         if admin.role == "hod" and admin.department:
             filter_dict["department"] = admin.department.upper()
-        elif department:
+        elif department and admin.role != "hod":  # Only apply query param for non-HOD users
             filter_dict["department"] = department.upper()
         
         batch_years = await DatabaseOperations.find_many("batch_years", filter_dict)

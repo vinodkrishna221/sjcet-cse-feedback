@@ -125,7 +125,7 @@ export default function HODDashboard() {
   const loadDashboardData = async () => {
     try {
       // Load batch years and departments
-      const batchYearsResponse = await apiService.getBatchYears(user?.department);
+      const batchYearsResponse = await apiService.getBatchYears();
       if (batchYearsResponse.success && batchYearsResponse.data?.batch_years) {
         setBatchYears(batchYearsResponse.data.batch_years);
         

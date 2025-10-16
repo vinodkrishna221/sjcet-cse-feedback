@@ -538,12 +538,8 @@ class ApiService {
     return this.handleResponse<ApiResponse>(response);
   }
 
-  async getBatchYears(department?: string) {
-    const url = department 
-      ? `${API_BASE_URL}/admin/batch-years?department=${encodeURIComponent(department)}`
-      : `${API_BASE_URL}/admin/batch-years`;
-    
-    const response = await fetch(url, {
+  async getBatchYears() {
+    const response = await fetch(`${API_BASE_URL}/admin/batch-years`, {
       headers: this.getAuthHeaders()
     });
 
