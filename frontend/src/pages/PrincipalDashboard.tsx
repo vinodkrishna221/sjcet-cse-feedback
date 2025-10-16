@@ -38,7 +38,7 @@ const PrincipalDashboard = () => {
     username: '', 
     password: '', 
     name: '', 
-    department: '',
+    department: 'none',
     email: '',
     phone: ''
   });
@@ -240,7 +240,7 @@ const PrincipalDashboard = () => {
         name: newHOD.name,
         ...(newHOD.email && { email: newHOD.email }),
         ...(newHOD.phone && { phone: newHOD.phone }),
-        ...(newHOD.department && { department: newHOD.department })
+        ...(newHOD.department && newHOD.department !== "none" && { department: newHOD.department })
       };
       
       const response = await apiService.createHOD(hodData);
@@ -250,7 +250,7 @@ const PrincipalDashboard = () => {
           username: '', 
           password: '', 
           name: '', 
-          department: '',
+          department: 'none',
           email: '', 
           phone: '' 
         });
@@ -1059,7 +1059,7 @@ const PrincipalDashboard = () => {
                                   <SelectValue placeholder="Select department (optional)" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="">No Department</SelectItem>
+                                  <SelectItem value="none">No Department</SelectItem>
                                   {departments.map((dept) => (
                                     <SelectItem key={dept.id} value={dept.code}>
                                       {dept.name} ({dept.code})
