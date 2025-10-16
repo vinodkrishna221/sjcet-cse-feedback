@@ -409,5 +409,6 @@ class AuthHelpers:
                 "role": user_data["role"],
                 "name": user_data["name"],
                 "email": user_data.get("email"),
-                "phone": user_data.get("phone")
+                "phone": user_data.get("phone"),
+                "department": user_data.get("department")
             }
