@@ -121,8 +121,21 @@ class DatabaseOperations:
                         update_dict: Dict[str, Any]) -> bool:
         """Update one document"""
         db = get_database()
-        update_dict['updated_at'] = datetime.now(timezone.utc)
-        result = await db[collection].update_one(filter_dict, {"$set": update_dict})
+        
+        # Check if update_dict already contains MongoDB operators
+        has_operators = any(key.startswith('$') for key in update_dict.keys())
+        
+        if has_operators:
+            # If it already has operators like $set, $unset, use as-is
+            # But add updated_at to the $set if it exists
+            if '$set' in update_dict:
+                update_dict['$set']['updated_at'] = datetime.now(timezone.utc)
+            result = await db[collection].update_one(filter_dict, update_dict)
+        else:
+            # If no operators, wrap with $set
+            update_dict['updated_at'] = datetime.now(timezone.utc)
+            result = await db[collection].update_one(filter_dict, {"$set": update_dict})
+        
         return result.modified_count > 0
     
     @staticmethod
@@ -172,8 +185,17 @@ class DatabaseOperations:
         """Update document by ID, trying both custom id and MongoDB _id"""
         db = get_database()
         
-        # Create the update document with $set operator
-        update_operation = {"$set": {**update_dict, "updated_at": datetime.now(timezone.utc)}}
+        # Check if update_dict already contains MongoDB operators
+        has_operators = any(key.startswith('$') for key in update_dict.keys())
+        
+        if has_operators:
+            # If it already has operators, use as-is but add updated_at
+            if '$set' in update_dict:
+                update_dict['$set']['updated_at'] = datetime.now(timezone.utc)
+            update_operation = update_dict
+        else:
+            # If no operators, wrap with $set
+            update_operation = {"$set": {**update_dict, "updated_at": datetime.now(timezone.utc)}}
         
         # First try custom id field
         result = await db[collection].update_one({"id": document_id}, update_operation)
