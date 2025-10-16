@@ -597,9 +597,15 @@ async def get_all_departments(
 ):
     """Get all departments"""
     try:
+        filter_dict = {"is_active": True}
+        
+        # For HOD role, restrict to their department only
+        if admin.role == "hod" and admin.department:
+            filter_dict["code"] = admin.department.upper()
+        
         departments = await DatabaseOperations.find_many(
             "departments",
-            {"is_active": True}
+            filter_dict
         )
         
         # Get HOD info for each department
@@ -849,7 +855,11 @@ async def get_all_batch_years(
     """Get all batch years with optional department filter"""
     try:
         filter_dict = {"is_active": True}
-        if department:
+        
+        # For HOD role, ALWAYS enforce their department
+        if admin.role == "hod" and admin.department:
+            filter_dict["department"] = admin.department.upper()
+        elif department:
             filter_dict["department"] = department.upper()
         
         batch_years = await DatabaseOperations.find_many("batch_years", filter_dict)

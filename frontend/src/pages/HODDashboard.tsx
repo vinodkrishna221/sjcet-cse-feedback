@@ -102,6 +102,7 @@ export default function HODDashboard() {
   const [selectedSection, setSelectedSection] = useState<string>('all');
   const [batchYears, setBatchYears] = useState<BatchYear[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [availableSections, setAvailableSections] = useState<string[]>([]);
 
   useEffect(() => {
     // Check if user is logged in and is HOD
@@ -127,6 +128,13 @@ export default function HODDashboard() {
       const batchYearsResponse = await apiService.getBatchYears(user?.department);
       if (batchYearsResponse.success && batchYearsResponse.data?.batch_years) {
         setBatchYears(batchYearsResponse.data.batch_years);
+        
+        // Extract unique sections from batch years
+        const uniqueSections = new Set<string>();
+        batchYearsResponse.data.batch_years.forEach((batch: BatchYear) => {
+          batch.sections.forEach(section => uniqueSections.add(section));
+        });
+        setAvailableSections(Array.from(uniqueSections).sort());
       }
       
       const departmentsResponse = await apiService.getDepartments();
@@ -694,7 +702,7 @@ export default function HODDashboard() {
                       <SelectItem value="all">All Batch Years</SelectItem>
                       {batchYears.map((batch) => (
                         <SelectItem key={batch.id} value={batch.year_range}>
-                          {batch.year_range} {batch.department}
+                          {batch.year_range}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -708,10 +716,9 @@ export default function HODDashboard() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Sections</SelectItem>
-                      <SelectItem value="A">Section A</SelectItem>
-                      <SelectItem value="B">Section B</SelectItem>
-                      <SelectItem value="C">Section C</SelectItem>
-                      <SelectItem value="D">Section D</SelectItem>
+                      {availableSections.map((section) => (
+                        <SelectItem key={section} value={section}>Section {section}</SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -1015,10 +1022,9 @@ export default function HODDashboard() {
                           <SelectValue placeholder="Select section" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="A">Section A</SelectItem>
-                          <SelectItem value="B">Section B</SelectItem>
-                          <SelectItem value="C">Section C</SelectItem>
-                          <SelectItem value="D">Section D</SelectItem>
+                          {availableSections.map((section) => (
+                            <SelectItem key={section} value={section}>Section {section}</SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
@@ -1055,7 +1061,7 @@ export default function HODDashboard() {
                         <SelectContent>
                           {batchYears.map((batch) => (
                             <SelectItem key={batch.id} value={batch.year_range}>
-                              {batch.year_range} {batch.department}
+                              {batch.year_range}
                             </SelectItem>
                           ))}
                         </SelectContent>
@@ -1193,20 +1199,16 @@ export default function HODDashboard() {
                     >
                       All
                     </Button>
-                    <Button 
-                      variant={studentFilter === 'A' ? 'default' : 'outline'} 
-                      size="sm" 
-                      onClick={() => setStudentFilter('A')}
-                    >
-                      Section A
-                    </Button>
-                    <Button 
-                      variant={studentFilter === 'B' ? 'default' : 'outline'} 
-                      size="sm" 
-                      onClick={() => setStudentFilter('B')}
-                    >
-                      Section B
-                    </Button>
+                    {availableSections.map((section) => (
+                      <Button 
+                        key={section}
+                        variant={studentFilter === section ? 'default' : 'outline'} 
+                        size="sm" 
+                        onClick={() => setStudentFilter(section)}
+                      >
+                        Section {section}
+                      </Button>
+                    ))}
                   </div>
                 </div>
                 
@@ -1324,22 +1326,17 @@ export default function HODDashboard() {
                   <div className="space-y-2">
                     <Label>Assigned Sections*</Label>
                     <div className="flex gap-2">
-                      <Button 
-                        type="button" 
-                        size="sm"
-                        variant={newTeacher.sections?.includes('A') ? 'default' : 'outline'}
-                        onClick={() => handleSectionToggle('A')}
-                      >
-                        Section A
-                      </Button>
-                      <Button 
-                        type="button" 
-                        size="sm"
-                        variant={newTeacher.sections?.includes('B') ? 'default' : 'outline'}
-                        onClick={() => handleSectionToggle('B')}
-                      >
-                        Section B
-                      </Button>
+                      {availableSections.map((section) => (
+                        <Button 
+                          key={section}
+                          type="button" 
+                          size="sm"
+                          variant={newTeacher.sections?.includes(section as any) ? 'default' : 'outline'}
+                          onClick={() => handleSectionToggle(section as any)}
+                        >
+                          Section {section}
+                        </Button>
+                      ))}
                     </div>
                   </div>
                   
