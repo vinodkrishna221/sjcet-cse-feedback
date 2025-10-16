@@ -48,12 +48,16 @@ async def get_all_faculty(
     try:
         filter_dict = {"is_active": True}
         
+        # For HOD role, ALWAYS enforce their department
+        if admin.role == "hod" and admin.department:
+            filter_dict["department"] = admin.department.upper()
+        elif department and admin.role != "hod":  # Only apply query param for non-HOD users
+            filter_dict["department"] = department.upper()
+        
         if section:
             filter_dict["sections"] = {"$in": [section]}
         if subject:
             filter_dict["subjects"] = {"$in": [subject]}
-        if department:
-            filter_dict["department"] = department.upper()
         
         faculty_list = await DatabaseOperations.find_many(
             "faculty", 

@@ -40,10 +40,15 @@ async def get_all_students(
     """Get all students with optional filters, pagination, and field selection"""
     try:
         filter_dict = {"is_active": True}
+        
+        # For HOD role, ALWAYS enforce their department
+        if admin.role == "hod" and admin.department:
+            filter_dict["department"] = admin.department.upper()
+        elif department and admin.role != "hod":  # Only apply query param for non-HOD users
+            filter_dict["department"] = department.upper()
+        
         if section:
             filter_dict["section"] = section
-        if department:
-            filter_dict["department"] = department.upper()
         if batch_year:
             filter_dict["batch_year"] = batch_year
         

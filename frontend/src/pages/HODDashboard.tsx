@@ -145,7 +145,7 @@ export default function HODDashboard() {
       // Load students with department filter
       const studentsResponse = await apiService.getAllStudents(
         undefined, // section
-        user?.department, // department
+        undefined, // department - let backend handle HOD filtering
         selectedBatchYear !== 'all' ? selectedBatchYear : undefined // batch_year
       );
       if (studentsResponse.success && studentsResponse.data?.students) {
@@ -156,7 +156,7 @@ export default function HODDashboard() {
       const teachersResponse = await apiService.getAllFaculty(
         undefined, // section
         undefined, // subject
-        user?.department // department
+        undefined  // department - let backend handle HOD filtering
       );
       if (teachersResponse.success && teachersResponse.data?.faculty) {
         setTeachers(teachersResponse.data.faculty);
