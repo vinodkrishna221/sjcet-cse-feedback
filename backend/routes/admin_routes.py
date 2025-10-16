@@ -50,9 +50,9 @@ async def create_hod(
     hod_data: AdminCreate,
     principal: Any = Depends(get_current_principal)
 ):
-    """Create a new HOD account with department assignment"""
+    """Create a new HOD account (department assignment is optional)"""
     try:
-        # Validate department exists
+        # Validate department exists if provided
         if hod_data.department:
             department = await DatabaseOperations.find_one(
                 "departments",
@@ -62,6 +62,12 @@ async def create_hod(
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Department not found"
+                )
+            # Check if department already has an HOD
+            if department.get("hod_id"):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Department already has an HOD assigned"
                 )
         
         # Check if username already exists
@@ -99,12 +105,12 @@ async def create_hod(
         
         await DatabaseOperations.insert_one("admins", hod_dict)
         
-        # Update department with HOD assignment
+        # Update department with HOD assignment if department was provided
         if hod_data.department:
             await DatabaseOperations.update_one(
                 "departments",
                 {"code": hod_data.department.upper()},
-                {"$set": {"hod_id": hod_admin.id}}
+                {"hod_id": hod_admin.id}
             )
         
         return APIResponse(
@@ -227,7 +233,7 @@ async def update_hod(
         await DatabaseOperations.update_one(
             "admins",
             {"id": hod_id},
-            {"$set": update_data}
+            update_data
         )
         
         # Update department HOD assignment if changed
@@ -237,7 +243,7 @@ async def update_hod(
                 await DatabaseOperations.update_one(
                     "departments",
                     {"code": existing_hod["department"]},
-                    {"$unset": {"hod_id": ""}}
+                    {"hod_id": None}
                 )
             
             # Assign HOD to new department
@@ -245,7 +251,7 @@ async def update_hod(
                 await DatabaseOperations.update_one(
                     "departments",
                     {"code": hod_data.department.upper()},
-                    {"$set": {"hod_id": hod_id}}
+                    {"hod_id": hod_id}
                 )
         
         return APIResponse(
@@ -267,7 +273,7 @@ async def deactivate_hod(
     hod_id: str,
     principal: Any = Depends(get_current_principal)
 ):
-    """Deactivate HOD account"""
+    """Hard delete HOD account (permanently remove from database)"""
     try:
         logger.info(f"Attempting to delete HOD with ID: {hod_id}")
         
@@ -282,12 +288,8 @@ async def deactivate_hod(
                 detail="HOD not found"
             )
         
-        # Deactivate HOD using the helper method
-        delete_result = await DatabaseOperations.update_by_id(
-            "admins",
-            hod_id,
-            {"is_active": False}
-        )
+        # Hard delete HOD
+        delete_result = await DatabaseOperations.delete_by_id("admins", hod_id)
         
         logger.info(f"Delete result: {delete_result}")
         
@@ -307,7 +309,7 @@ async def deactivate_hod(
         
         return APIResponse(
             success=True,
-            message="HOD deactivated successfully"
+            message="HOD deleted successfully"
         )
         
     except HTTPException:
@@ -319,13 +321,205 @@ async def deactivate_hod(
             detail="Error deactivating HOD"
         )
 
+# HOD-Department Assignment Endpoints
+@router.put("/hods/{hod_id}/assign-department", response_model=APIResponse)
+async def assign_hod_to_department(
+    hod_id: str,
+    department_code: str,
+    principal: Any = Depends(get_current_principal)
+):
+    """Assign an existing HOD to a department"""
+    try:
+        # Validate HOD exists
+        hod = await DatabaseOperations.find_by_id("admins", hod_id)
+        if not hod or hod.get("role") != "hod":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="HOD not found"
+            )
+        
+        # Validate department exists
+        department = await DatabaseOperations.find_one(
+            "departments",
+            {"code": department_code.upper(), "is_active": True}
+        )
+        if not department:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Department not found"
+            )
+        
+        # Check if department already has an HOD
+        if department.get("hod_id"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Department already has an HOD assigned"
+            )
+        
+        # Check if HOD is already assigned to another department
+        if hod.get("department"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="HOD is already assigned to another department"
+            )
+        
+        # Update HOD's department
+        await DatabaseOperations.update_by_id(
+            "admins",
+            hod_id,
+            {"department": department_code.upper()}
+        )
+        
+        # Update department's HOD
+        await DatabaseOperations.update_one(
+            "departments",
+            {"code": department_code.upper()},
+            {"hod_id": hod_id}
+        )
+        
+        return APIResponse(
+            success=True,
+            message=f"HOD {hod['name']} assigned to department {department['name']} successfully"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error assigning HOD to department: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error assigning HOD to department"
+        )
+
+@router.put("/departments/{dept_id}/assign-hod", response_model=APIResponse)
+async def assign_department_to_hod(
+    dept_id: str,
+    hod_id: str,
+    principal: Any = Depends(get_current_principal)
+):
+    """Assign an existing HOD to a department"""
+    try:
+        # Validate department exists
+        department = await DatabaseOperations.find_by_id("departments", dept_id)
+        if not department:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Department not found"
+            )
+        
+        # Validate HOD exists
+        hod = await DatabaseOperations.find_by_id("admins", hod_id)
+        if not hod or hod.get("role") != "hod":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="HOD not found"
+            )
+        
+        # Check if department already has an HOD
+        if department.get("hod_id"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Department already has an HOD assigned"
+            )
+        
+        # Check if HOD is already assigned to another department
+        if hod.get("department"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="HOD is already assigned to another department"
+            )
+        
+        # Update department's HOD
+        await DatabaseOperations.update_by_id(
+            "departments",
+            dept_id,
+            {"hod_id": hod_id}
+        )
+        
+        # Update HOD's department
+        await DatabaseOperations.update_by_id(
+            "admins",
+            hod_id,
+            {"department": department["code"]}
+        )
+        
+        return APIResponse(
+            success=True,
+            message=f"HOD {hod['name']} assigned to department {department['name']} successfully"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error assigning HOD to department: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error assigning HOD to department"
+        )
+
+@router.put("/hods/{hod_id}/unassign-department", response_model=APIResponse)
+async def unassign_hod_from_department(
+    hod_id: str,
+    principal: Any = Depends(get_current_principal)
+):
+    """Unassign HOD from their current department"""
+    try:
+        # Validate HOD exists
+        hod = await DatabaseOperations.find_by_id("admins", hod_id)
+        if not hod or hod.get("role") != "hod":
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="HOD not found"
+            )
+        
+        if not hod.get("department"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="HOD is not assigned to any department"
+            )
+        
+        # Find the department
+        department = await DatabaseOperations.find_one(
+            "departments",
+            {"code": hod["department"], "is_active": True}
+        )
+        
+        # Update HOD's department
+        await DatabaseOperations.update_by_id(
+            "admins",
+            hod_id,
+            {"department": None}
+        )
+        
+        # Update department's HOD
+        if department:
+            await DatabaseOperations.update_one(
+                "departments",
+                {"code": hod["department"]},
+                {"$unset": {"hod_id": ""}}
+            )
+        
+        return APIResponse(
+            success=True,
+            message=f"HOD {hod['name']} unassigned from department successfully"
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error unassigning HOD from department: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error unassigning HOD from department"
+        )
+
 # Department Management Endpoints
 @router.post("/departments", response_model=APIResponse)
 async def create_department(
     department_data: DepartmentCreate,
     principal: Any = Depends(get_current_principal)
 ):
-    """Create a new department"""
+    """Create a new department (HOD assignment is optional)"""
     try:
         # Check if department code already exists
         existing_dept = await DatabaseOperations.find_one(
@@ -349,6 +543,16 @@ async def create_department(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="Invalid HOD ID"
                 )
+            # Check if HOD is already assigned to another department
+            existing_hod_dept = await DatabaseOperations.find_one(
+                "departments",
+                {"hod_id": department_data.hod_id, "is_active": True}
+            )
+            if existing_hod_dept:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="HOD is already assigned to another department"
+                )
         
         # Create department
         department = Department(
@@ -363,6 +567,14 @@ async def create_department(
         dept_dict["updated_at"] = department.updated_at
         
         await DatabaseOperations.insert_one("departments", dept_dict)
+        
+        # If HOD was provided, update HOD's department field
+        if department_data.hod_id:
+            await DatabaseOperations.update_by_id(
+                "admins",
+                department_data.hod_id,
+                {"department": department.code}
+            )
         
         return APIResponse(
             success=True,
@@ -484,7 +696,7 @@ async def update_department(
         await DatabaseOperations.update_one(
             "departments",
             {"id": dept_id},
-            {"$set": update_data}
+            update_data
         )
         
         return APIResponse(
@@ -506,7 +718,7 @@ async def delete_department(
     dept_id: str,
     principal: Any = Depends(get_current_principal)
 ):
-    """Soft delete a department"""
+    """Hard delete a department (permanently remove from database)"""
     try:
         logger.info(f"Attempting to delete department with ID: {dept_id}")
         
@@ -543,12 +755,8 @@ async def delete_department(
                 detail="Cannot delete department with active batch years. Please delete batch years first."
             )
         
-        # Soft delete department using the helper method
-        delete_result = await DatabaseOperations.update_by_id(
-            "departments",
-            dept_id,
-            {"is_active": False}
-        )
+        # Hard delete department
+        delete_result = await DatabaseOperations.delete_by_id("departments", dept_id)
         
         logger.info(f"Delete result: {delete_result}")
         
@@ -694,10 +902,8 @@ async def add_sections_to_batch_year(
             "batch_years",
             {"id": batch_id},
             {
-                "$set": {
-                    "sections": sections_data.sections,
-                    "updated_at": datetime.now(timezone.utc)
-                }
+                "sections": sections_data.sections,
+                "updated_at": datetime.now(timezone.utc)
             }
         )
         
@@ -778,7 +984,7 @@ async def update_batch_year(
         await DatabaseOperations.update_one(
             "batch_years",
             {"id": batch_id},
-            {"$set": update_data}
+            update_data
         )
         
         return APIResponse(
@@ -847,10 +1053,8 @@ async def add_sections_simple(
             "batch_years",
             {"id": batch_id},
             {
-                "$set": {
-                    "sections": sections,
-                    "updated_at": datetime.now(timezone.utc)
-                }
+                "sections": sections,
+                "updated_at": datetime.now(timezone.utc)
             }
         )
         
@@ -874,7 +1078,7 @@ async def delete_batch_year(
     batch_id: str,
     principal: Any = Depends(get_current_principal)
 ):
-    """Soft delete a batch year"""
+    """Hard delete a batch year (permanently remove from database)"""
     try:
         logger.info(f"Attempting to delete batch year with ID: {batch_id}")
         
@@ -900,12 +1104,8 @@ async def delete_batch_year(
                 detail="Cannot delete batch year with active students. Please remove students first."
             )
         
-        # Soft delete batch year using the helper method
-        delete_result = await DatabaseOperations.update_by_id(
-            "batch_years",
-            batch_id,
-            {"is_active": False}
-        )
+        # Hard delete batch year
+        delete_result = await DatabaseOperations.delete_by_id("batch_years", batch_id)
         
         logger.info(f"Delete result: {delete_result}")
         

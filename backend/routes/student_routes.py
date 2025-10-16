@@ -243,15 +243,11 @@ async def delete_student(
     student_id: str,
     admin: Any = Depends(get_current_admin)
 ):
-    """Soft delete student (mark as inactive)"""
+    """Hard delete student (permanently remove from database)"""
     try:
-        updated = await DatabaseOperations.update_one(
-            "students",
-            {"id": student_id},
-            {"is_active": False}
-        )
+        deleted = await DatabaseOperations.delete_by_id("students", student_id)
         
-        if not updated:
+        if not deleted:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Student not found"
@@ -259,7 +255,7 @@ async def delete_student(
         
         return APIResponse(
             success=True,
-            message="Student deactivated successfully",
+            message="Student deleted successfully",
             data=None
         )
         
@@ -529,12 +525,12 @@ async def bulk_delete_students(
     request: BulkDeleteRequest,
     admin: Any = Depends(get_current_admin)
 ):
-    """Bulk delete students (soft delete)"""
+    """Bulk delete students (hard delete)"""
     try:
         result = await BulkOperationsHelper.bulk_delete(
             "students",
             request.ids,
-            soft_delete=True
+            soft_delete=False
         )
         
         return APIResponse(

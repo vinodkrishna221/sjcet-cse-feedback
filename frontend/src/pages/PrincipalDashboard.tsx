@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Pencil, Trash2, Plus, Building, GraduationCap, UserPlus } from "lucide-react";
+import { Pencil, Trash2, Plus, Building, GraduationCap, UserPlus, UserMinus } from "lucide-react";
 import ReportGenerator from "@/components/ReportGenerator";
 
 const PrincipalDashboard = () => {
@@ -228,13 +228,22 @@ const PrincipalDashboard = () => {
 
   // HOD management handlers
   const handleCreateHOD = async () => {
-    if (!newHOD.username || !newHOD.password || !newHOD.name || !newHOD.department) {
+    if (!newHOD.username || !newHOD.password || !newHOD.name) {
       toast.error('Please fill all required fields');
       return;
     }
     
     try {
-      const response = await apiService.createHOD(newHOD);
+      const hodData = {
+        username: newHOD.username,
+        password: newHOD.password,
+        name: newHOD.name,
+        ...(newHOD.email && { email: newHOD.email }),
+        ...(newHOD.phone && { phone: newHOD.phone }),
+        ...(newHOD.department && { department: newHOD.department })
+      };
+      
+      const response = await apiService.createHOD(hodData);
       if (response.success) {
         toast.success('HOD created successfully');
         setNewHOD({ 
@@ -242,8 +251,8 @@ const PrincipalDashboard = () => {
           password: '', 
           name: '', 
           department: '',
-          email: '',
-          phone: ''
+          email: '', 
+          phone: '' 
         });
         setIsHODDialogOpen(false);
         setShowPassword(false);
@@ -288,6 +297,52 @@ const PrincipalDashboard = () => {
     } catch (error) {
       console.error('Error updating HOD:', error);
       toast.error('Failed to update HOD');
+    }
+  };
+
+  // HOD-Department Assignment handlers
+  const handleAssignHODToDepartment = async (hodId: string, departmentCode: string) => {
+    try {
+      const response = await apiService.assignHODToDepartment(hodId, departmentCode);
+      if (response.success) {
+        toast.success('HOD assigned to department successfully');
+        loadManagementData();
+      } else {
+        toast.error(response.message || 'Failed to assign HOD to department');
+      }
+    } catch (error) {
+      console.error('Error assigning HOD to department:', error);
+      toast.error('Failed to assign HOD to department');
+    }
+  };
+
+  const handleUnassignHODFromDepartment = async (hodId: string) => {
+    try {
+      const response = await apiService.unassignHODFromDepartment(hodId);
+      if (response.success) {
+        toast.success('HOD unassigned from department successfully');
+        loadManagementData();
+      } else {
+        toast.error(response.message || 'Failed to unassign HOD from department');
+      }
+    } catch (error) {
+      console.error('Error unassigning HOD from department:', error);
+      toast.error('Failed to unassign HOD from department');
+    }
+  };
+
+  const handleAssignDepartmentToHOD = async (departmentId: string, hodId: string) => {
+    try {
+      const response = await apiService.assignDepartmentToHOD(departmentId, hodId);
+      if (response.success) {
+        toast.success('HOD assigned to department successfully');
+        loadManagementData();
+      } else {
+        toast.error(response.message || 'Failed to assign HOD to department');
+      }
+    } catch (error) {
+      console.error('Error assigning HOD to department:', error);
+      toast.error('Failed to assign HOD to department');
     }
   };
 
@@ -998,12 +1053,13 @@ const PrincipalDashboard = () => {
                               />
                             </div>
                             <div>
-                              <Label htmlFor="hod-department">Department</Label>
+                              <Label htmlFor="hod-department">Department (Optional)</Label>
                               <Select value={newHOD.department} onValueChange={(value) => setNewHOD(prev => ({ ...prev, department: value }))}>
                                 <SelectTrigger>
-                                  <SelectValue placeholder="Select department" />
+                                  <SelectValue placeholder="Select department (optional)" />
                                 </SelectTrigger>
                                 <SelectContent>
+                                  <SelectItem value="">No Department</SelectItem>
                                   {departments.map((dept) => (
                                     <SelectItem key={dept.id} value={dept.code}>
                                       {dept.name} ({dept.code})
@@ -1012,7 +1068,7 @@ const PrincipalDashboard = () => {
                                 </SelectContent>
                               </Select>
                               <p className="text-xs text-muted-foreground mt-1">
-                                Assigning an HOD to a department will automatically link them in the department management
+                                You can assign the HOD to a department later if needed
                               </p>
                             </div>
                           </div>
@@ -1066,7 +1122,13 @@ const PrincipalDashboard = () => {
                           <TableRow key={hod.id}>
                             <TableCell>{hod.name}</TableCell>
                             <TableCell>{hod.username}</TableCell>
-                            <TableCell>{hod.department}</TableCell>
+                            <TableCell>
+                              {hod.department ? (
+                                <Badge variant="outline">{hod.department}</Badge>
+                              ) : (
+                                <span className="text-muted-foreground">Not Assigned</span>
+                              )}
+                            </TableCell>
                             <TableCell>
                               <Badge variant={hod.is_active ? 'default' : 'secondary'}>
                                 {hod.is_active ? 'Active' : 'Inactive'}
@@ -1082,6 +1144,29 @@ const PrincipalDashboard = () => {
                                   <Pencil className="h-4 w-4 mr-1" />
                                   Edit
                                 </Button>
+                                {hod.department ? (
+                                  <Button 
+                                    variant="secondary" 
+                                    size="sm"
+                                    onClick={() => handleUnassignHODFromDepartment(hod.id)}
+                                  >
+                                    <UserMinus className="h-4 w-4 mr-1" />
+                                    Unassign
+                                  </Button>
+                                ) : (
+                                  <Select onValueChange={(deptCode) => handleAssignHODToDepartment(hod.id, deptCode)}>
+                                    <SelectTrigger className="w-32">
+                                      <SelectValue placeholder="Assign" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {departments.filter(dept => !dept.hod_id).map((dept) => (
+                                        <SelectItem key={dept.id} value={dept.code}>
+                                          {dept.code}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                )}
                                 <Button 
                                   variant="destructive" 
                                   size="sm"
@@ -1213,6 +1298,33 @@ const PrincipalDashboard = () => {
                                   <Pencil className="h-4 w-4 mr-1" />
                                   Edit
                                 </Button>
+                                {dept.hod_id ? (
+                                  <Button 
+                                    variant="secondary" 
+                                    size="sm"
+                                    onClick={() => {
+                                      if (dept.hod_id) {
+                                        handleUnassignHODFromDepartment(dept.hod_id);
+                                      }
+                                    }}
+                                  >
+                                    <UserMinus className="h-4 w-4 mr-1" />
+                                    Unassign HOD
+                                  </Button>
+                                ) : (
+                                  <Select onValueChange={(hodId) => handleAssignDepartmentToHOD(dept.id, hodId)}>
+                                    <SelectTrigger className="w-32">
+                                      <SelectValue placeholder="Assign HOD" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {hods.filter(hod => !hod.department).map((hod) => (
+                                        <SelectItem key={hod.id} value={hod.id}>
+                                          {hod.name}
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                )}
                                 <Button 
                                   variant="destructive" 
                                   size="sm"

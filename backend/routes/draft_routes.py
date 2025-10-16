@@ -80,7 +80,7 @@ async def save_draft(
             await DatabaseOperations.update_one(
                 "feedback_drafts",
                 {"_id": existing_draft["_id"]},
-                {"$set": draft_document}
+                draft_document
             )
             message = "Draft updated successfully"
         else:

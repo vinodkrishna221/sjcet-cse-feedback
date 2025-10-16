@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || import.meta.env.REACT_APP_BACKEND_URL || 'http://localhost:8001/api/v1';
+const API_BASE_URL = import.meta.env['VITE_BACKEND_URL'] || import.meta.env['REACT_APP_BACKEND_URL'] || 'http://localhost:8001/api/v1';
 
 // API Response types
 export interface ApiResponse<T = any> {
@@ -387,7 +387,7 @@ class ApiService {
     name: string;
     email?: string;
     phone?: string;
-    department: string;
+    department?: string;
   }) {
     const response = await fetch(`${API_BASE_URL}/admin/hods`, {
       method: 'POST',
@@ -440,6 +440,34 @@ class ApiService {
     });
 
     console.log('Delete HOD response:', response.status, response.statusText);
+    return this.handleResponse<ApiResponse>(response);
+  }
+
+  // HOD-Department Assignment
+  async assignHODToDepartment(hodId: string, departmentCode: string) {
+    const response = await fetch(`${API_BASE_URL}/admin/hods/${hodId}/assign-department?department_code=${encodeURIComponent(departmentCode)}`, {
+      method: 'PUT',
+      headers: this.getAuthHeaders()
+    });
+
+    return this.handleResponse<ApiResponse>(response);
+  }
+
+  async assignDepartmentToHOD(departmentId: string, hodId: string) {
+    const response = await fetch(`${API_BASE_URL}/admin/departments/${departmentId}/assign-hod?hod_id=${hodId}`, {
+      method: 'PUT',
+      headers: this.getAuthHeaders()
+    });
+
+    return this.handleResponse<ApiResponse>(response);
+  }
+
+  async unassignHODFromDepartment(hodId: string) {
+    const response = await fetch(`${API_BASE_URL}/admin/hods/${hodId}/unassign-department`, {
+      method: 'PUT',
+      headers: this.getAuthHeaders()
+    });
+
     return this.handleResponse<ApiResponse>(response);
   }
 

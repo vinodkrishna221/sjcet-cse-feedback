@@ -240,15 +240,11 @@ async def delete_faculty(
     faculty_id: str,
     admin: Any = Depends(get_current_admin)
 ):
-    """Soft delete faculty (mark as inactive)"""
+    """Hard delete faculty (permanently remove from database)"""
     try:
-        updated = await DatabaseOperations.update_one(
-            "faculty",
-            {"id": faculty_id},
-            {"is_active": False}
-        )
+        deleted = await DatabaseOperations.delete_by_id("faculty", faculty_id)
         
-        if not updated:
+        if not deleted:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Faculty not found"
@@ -256,7 +252,7 @@ async def delete_faculty(
         
         return APIResponse(
             success=True,
-            message="Faculty deactivated successfully",
+            message="Faculty deleted successfully",
             data=None
         )
         
