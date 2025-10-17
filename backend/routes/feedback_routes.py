@@ -183,8 +183,8 @@ async def get_submission_status(
             month = now.month
             year = now.year
             
-            # Determine semester based on month
-            semester = "Even" if month >= 1 and month <= 6 else "Odd"
+            # Determine semester based on month (same logic as frontend)
+            semester = "Even" if month >= 0 and month <= 5 else "Odd"
             academic_year = f"{year}-{year + 1}"
         
         # Debug logging

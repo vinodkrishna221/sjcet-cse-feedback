@@ -133,11 +133,20 @@ const FeedbackForm = () => {
     setIsSubmitting(true);
 
     try {
+      // Determine current semester and academic year (same logic as backend)
+      const now = new Date();
+      const month = now.getMonth();
+      const year = now.getFullYear();
+      
+      // Determine semester based on month (same as backend logic)
+      const semester = month >= 0 && month <= 5 ? 'Even' : 'Odd';
+      const academicYear = `${year}-${year + 1}`;
+      
       // Prepare feedback data for backend schema (FeedbackCreate)
       const feedbackData = {
         student_section: user?.section,
-        semester: "1", // Default semester - should be configurable
-        academic_year: "2024-2025", // Default academic year - should be configurable
+        semester: semester,
+        academic_year: academicYear,
         is_anonymous: true,
         faculty_feedbacks: Object.values(teacherFeedbacks).map(tf => ({
           faculty_id: tf.teacherId,
