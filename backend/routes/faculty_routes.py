@@ -63,7 +63,7 @@ async def get_all_faculty(
             "faculty", 
             filter_dict=filter_dict,
             limit=limit,
-            sort=[("name", 1)]
+            sort={"name": 1}
         )
         
         faculty_responses = [

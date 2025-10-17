@@ -148,8 +148,11 @@ export default function HODDashboard() {
         undefined, // department - let backend handle HOD filtering
         selectedBatchYear !== 'all' ? selectedBatchYear : undefined // batch_year
       );
-      if (studentsResponse.success && studentsResponse.data?.students) {
-        setStudents(studentsResponse.data.students);
+      if (studentsResponse.success && studentsResponse.data?.data) {
+        setStudents(studentsResponse.data.data);
+        console.log('Students loaded:', studentsResponse.data.data);
+      } else {
+        console.log('No students found or API error:', studentsResponse);
       }
 
       // Load teachers with department filter
@@ -577,13 +580,20 @@ export default function HODDashboard() {
   // Students per section
   const sectionAStudents = students.filter(s => s.section === 'A').length;
   const sectionBStudents = students.filter(s => s.section === 'B').length;
+  
+  // Debug logging
+  console.log('Students data:', students);
+  console.log('Section A students:', sectionAStudents);
+  console.log('Section B students:', sectionBStudents);
 
   return (
     <div className="container mx-auto py-6 space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">HOD Dashboard</h1>
-          <p className="text-muted-foreground">Welcome back, {user?.name || 'HOD'}, HOD</p>
+          <p className="text-muted-foreground">
+            Welcome back, {user?.name || `${user?.department || 'CSE'} HOD`}, HOD
+          </p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={handleExportData}>
