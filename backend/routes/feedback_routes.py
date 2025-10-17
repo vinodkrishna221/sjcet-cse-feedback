@@ -68,13 +68,14 @@ async def submit_feedback(
                 detail="Feedback already submitted for this semester"
             )
         
-        # Validate faculty IDs exist and teach the section
+        # Validate faculty IDs exist and teach the section and batch year
         for faculty_feedback in feedback_data.faculty_feedbacks:
             faculty = await DatabaseOperations.find_one(
                 "faculty",
                 {
                     "faculty_id": faculty_feedback.faculty_id,
                     "sections": {"$in": [feedback_data.student_section]},
+                    "batch_years": {"$in": [student.batch_year]},  # Add batch year filtering
                     "is_active": True
                 }
             )
@@ -82,7 +83,7 @@ async def submit_feedback(
             if not faculty:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Faculty {faculty_feedback.faculty_id} not found or doesn't teach section {feedback_data.student_section}"
+                    detail=f"Faculty {faculty_feedback.faculty_id} not found or doesn't teach section {feedback_data.student_section} for batch year {student.batch_year}"
                 )
         
         # Check if student has already submitted feedback recently (optional rate limiting)

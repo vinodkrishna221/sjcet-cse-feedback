@@ -105,12 +105,16 @@ const PrincipalDashboard = () => {
       const feedbackResponse = await apiService.getFeedbackAnalytics();
       if (feedbackResponse.success && feedbackResponse.data) {
         setFeedbackData(feedbackResponse.data);
+      } else {
+        setFeedbackData([]); // Ensure it's always an array
       }
       
       // Load bundled feedback
       const bundledResponse = await apiService.getFeedbackBundles();
       if (bundledResponse.success && bundledResponse.data?.bundles) {
         setBundledFeedback(bundledResponse.data.bundles);
+      } else {
+        setBundledFeedback([]); // Ensure it's always an array
       }
       
     } catch (error) {
@@ -510,9 +514,9 @@ const PrincipalDashboard = () => {
 
   // Calculate comprehensive statistics combining both data sources
   const allFeedbackItems = [
-    ...feedbackData,
-    ...bundledFeedback.flatMap(bundle => 
-      bundle.teacherFeedbacks.map(tf => ({
+    ...(feedbackData || []),
+    ...(bundledFeedback || []).flatMap(bundle => 
+      (bundle.teacherFeedbacks || []).map(tf => ({
         id: bundle.id,
         subject: tf.subject,
         faculty: tf.teacherName,
@@ -755,7 +759,7 @@ const PrincipalDashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-6">
-                  {bundledFeedback.map((bundle) => (
+                  {(bundledFeedback || []).map((bundle) => (
                     <div key={bundle.id} className="border border-border rounded-lg p-6">
                       <div className="flex items-start justify-between mb-4">
                         <div>
@@ -772,12 +776,12 @@ const PrincipalDashboard = () => {
                           </div>
                         </div>
                         <Badge variant="outline">
-                          Avg: {(bundle.teacherFeedbacks.reduce((sum, tf) => sum + tf.overallRating, 0) / bundle.teacherFeedbacks.length).toFixed(1)}/10
+                          Avg: {((bundle.teacherFeedbacks || []).reduce((sum, tf) => sum + tf.overallRating, 0) / (bundle.teacherFeedbacks || []).length).toFixed(1)}/10
                         </Badge>
                       </div>
                       
                       <div className="space-y-4">
-                        {bundle.teacherFeedbacks.map((tf, index) => (
+                        {(bundle.teacherFeedbacks || []).map((tf, index) => (
                           <div key={index} className="bg-muted/20 rounded-lg p-4">
                             <div className="flex items-center justify-between mb-3">
                               <div>
@@ -791,7 +795,7 @@ const PrincipalDashboard = () => {
                             
                             {/* Question Categories Performance */}
                             <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3">
-                              {tf.questionRatings.slice(0, 5).map((qr, qIndex) => (
+                              {(tf.questionRatings || []).slice(0, 5).map((qr, qIndex) => (
                                 <div key={qIndex} className="text-xs">
                                   <div className="font-medium truncate">
                                     {FEEDBACK_QUESTIONS.find(q => q.id === qr.questionId)?.category}

@@ -445,18 +445,19 @@ async def get_faculty_by_section(
     section: str,
     student: Any = Depends(get_current_student)
 ):
-    """Get faculty members teaching a specific section"""
+    """Get faculty members teaching a specific section and batch year"""
     try:
-        if section.upper() not in ['A', 'B']:
+        if section.upper() not in ['A', 'B', 'C', 'D']:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Section must be A or B"
+                detail="Section must be A, B, C, or D"
             )
         
         faculty_list = await DatabaseOperations.find_many(
             "faculty",
             {
                 "sections": {"$in": [section.upper()]},
+                "batch_years": {"$in": [student.batch_year]},  # Add batch year filtering
                 "is_active": True
             },
             sort={"name": 1}
@@ -475,7 +476,7 @@ async def get_faculty_by_section(
         
         return APIResponse(
             success=True,
-            message=f"Retrieved {len(formatted_faculty)} faculty-subject combinations for section {section.upper()}",
+            message=f"Retrieved {len(formatted_faculty)} faculty-subject combinations for section {section.upper()} and batch year {student.batch_year}",
             data={"faculty": formatted_faculty}
         )
         

@@ -39,6 +39,7 @@ interface TeacherDetails {
   name: string;
   subjects: string[];
   sections: ('A' | 'B' | 'C' | 'D')[];
+  batch_years: string[];
   email?: string;
   phone?: string;
   department?: string;
@@ -86,6 +87,7 @@ export default function HODDashboard() {
     name: '',
     subjects: [],
     sections: [],
+    batch_years: [],
     email: '',
     phone: '',
     department: user?.department || 'CSE'
@@ -529,8 +531,8 @@ export default function HODDashboard() {
   // Teacher management handlers
   const handleAddTeacher = async () => {
     // Validate required fields
-    if (!newTeacher.faculty_id || !newTeacher.name || !newTeacher.subjects?.length || !newTeacher.sections?.length) {
-      toast.error("Please fill all required fields");
+    if (!newTeacher.faculty_id || !newTeacher.name || !newTeacher.subjects?.length || !newTeacher.sections?.length || !newTeacher.batch_years?.length) {
+      toast.error("Please fill all required fields including batch years");
       return;
     }
     
@@ -540,6 +542,7 @@ export default function HODDashboard() {
         name: newTeacher.name,
         subjects: newTeacher.subjects,
         sections: newTeacher.sections,
+        batch_years: newTeacher.batch_years,
         email: newTeacher.email || undefined,
         phone: newTeacher.phone || undefined,
         department: newTeacher.department || undefined,
@@ -558,6 +561,7 @@ export default function HODDashboard() {
           name: '',
           subjects: [],
           sections: [],
+          batch_years: [],
           email: '',
           phone: ''
         });
@@ -607,6 +611,17 @@ export default function HODDashboard() {
         return { ...prev, sections: sections.filter(s => s !== section) };
       } else {
         return { ...prev, sections: [...sections, section] };
+      }
+    });
+  };
+
+  const handleBatchYearToggle = (batchYear: string) => {
+    setNewTeacher(prev => {
+      const batchYears = (prev.batch_years || []);
+      if (batchYears.includes(batchYear)) {
+        return { ...prev, batch_years: batchYears.filter(b => b !== batchYear) };
+      } else {
+        return { ...prev, batch_years: [...batchYears, batchYear] };
       }
     });
   };
@@ -1507,6 +1522,23 @@ export default function HODDashboard() {
                     </div>
                   </div>
                   
+                  <div className="space-y-2">
+                    <Label>Assigned Batch Years*</Label>
+                    <div className="flex gap-2">
+                      {batchYears.map((batch) => (
+                        <Button 
+                          key={batch.id}
+                          type="button" 
+                          size="sm"
+                          variant={newTeacher.batch_years?.includes(batch.year_range) ? 'default' : 'outline'}
+                          onClick={() => handleBatchYearToggle(batch.year_range)}
+                        >
+                          {batch.year_range}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                  
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-2">
                       <Label htmlFor="email">Email</Label>
@@ -1552,6 +1584,7 @@ export default function HODDashboard() {
                         <TableHead>Name</TableHead>
                         <TableHead>Subjects</TableHead>
                         <TableHead>Sections</TableHead>
+                        <TableHead>Batch Years</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -1580,6 +1613,15 @@ export default function HODDashboard() {
                               </div>
                             </TableCell>
                             <TableCell>
+                              <div className="flex gap-1">
+                                {teacher.batch_years?.map((batchYear) => (
+                                  <Badge key={batchYear} variant="outline" className="text-xs">
+                                    {batchYear}
+                                  </Badge>
+                                ))}
+                              </div>
+                            </TableCell>
+                            <TableCell>
                               <div className="flex gap-2">
                                 <Button variant="outline" size="sm" onClick={() => openTeacherEdit(teacher)}>
                                   <Pencil className="h-4 w-4 mr-1" /> Edit
@@ -1593,7 +1635,7 @@ export default function HODDashboard() {
                         ))
                       ) : (
                         <TableRow>
-                          <TableCell colSpan={5} className="text-center py-4">
+                          <TableCell colSpan={6} className="text-center py-4">
                             No teachers found
                           </TableCell>
                         </TableRow>

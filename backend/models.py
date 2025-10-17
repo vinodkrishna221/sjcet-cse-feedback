@@ -186,6 +186,7 @@ class Faculty(BaseDocument):
     name: str
     subjects: List[str]
     sections: List[Section]
+    batch_years: List[str] = Field(default_factory=list)  # Batch years this faculty teaches
     email: Optional[str] = None
     phone: Optional[str] = None
     department: str = Field(..., min_length=2, max_length=50)  # Required field
@@ -204,6 +205,7 @@ class FacultyCreate(BaseModel):
     name: str
     subjects: List[str]
     sections: List[Section]
+    batch_years: List[str] = Field(default_factory=list)  # Batch years this faculty teaches
     email: Optional[str] = None
     phone: Optional[str] = None
     department: str
