@@ -294,6 +294,7 @@ class FeedbackCreate(BaseModel):
     semester: str = Field(..., min_length=1, max_length=20)
     academic_year: str = Field(..., min_length=4, max_length=10)
     faculty_feedbacks: List[IndividualFeedback]
+    is_anonymous: bool = True
 
 # Dashboard Analytics Models
 class FacultyAnalytics(BaseModel):
