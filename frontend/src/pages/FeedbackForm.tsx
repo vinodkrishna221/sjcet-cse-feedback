@@ -33,12 +33,17 @@ const FeedbackForm = () => {
       if (!user?.section) return;
       
       try {
+        console.log('Checking submission status for user:', user);
         setIsCheckingStatus(true);
         const response = await apiService.getFeedbackSubmissionStatus();
+        
+        console.log('Submission status response:', response);
         
         if (response.success && response.data) {
           setSubmissionStatus(response.data);
           setHasAlreadySubmitted(response.data.has_submitted);
+          
+          console.log('Has already submitted:', response.data.has_submitted);
           
           if (response.data.has_submitted) {
             toast.info('You have already submitted feedback for this semester. You cannot submit again.');

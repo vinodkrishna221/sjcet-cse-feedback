@@ -187,6 +187,9 @@ async def get_submission_status(
             semester = "Even" if month >= 1 and month <= 6 else "Odd"
             academic_year = f"{year}-{year + 1}"
         
+        # Debug logging
+        logger.info(f"Checking submission status for student ID: {student.id}, semester: {semester}, academic_year: {academic_year}")
+        
         # Check if student has already submitted feedback
         existing_feedback = await DatabaseOperations.find_one(
             "feedback_submissions",
@@ -196,6 +199,10 @@ async def get_submission_status(
                 "academic_year": academic_year
             }
         )
+        
+        logger.info(f"Existing feedback found: {existing_feedback is not None}")
+        if existing_feedback:
+            logger.info(f"Feedback details: {existing_feedback}")
         
         if existing_feedback:
             return APIResponse(
