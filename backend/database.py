@@ -315,40 +315,51 @@ class AnalyticsOperations:
             }}
         ]
         
-        avg_rating_result = await DatabaseOperations.aggregate("feedback_submissions", avg_rating_pipeline)
-        avg_rating = avg_rating_result[0]["average_rating"] if avg_rating_result else 0
+        try:
+            avg_rating_result = await DatabaseOperations.aggregate("feedback_submissions", avg_rating_pipeline)
+            avg_rating = avg_rating_result[0]["average_rating"] if avg_rating_result and len(avg_rating_result) > 0 else 0
+        except Exception as e:
+            logger.warning(f"Error calculating average rating: {e}")
+            avg_rating = 0
         
-        # Get batch year distribution
-        batch_year_pipeline = [
-            {"$match": student_match},
-            {"$group": {
-                "_id": "$batch_year",
-                "student_count": {"$sum": 1}
-            }},
-            {"$sort": {"_id": -1}}
-        ]
+        # Get batch year distribution with error handling
+        try:
+            batch_year_pipeline = [
+                {"$match": student_match},
+                {"$group": {
+                    "_id": "$batch_year",
+                    "student_count": {"$sum": 1}
+                }},
+                {"$sort": {"_id": -1}}
+            ]
+            batch_year_distribution = await DatabaseOperations.aggregate("students", batch_year_pipeline)
+        except Exception as e:
+            logger.warning(f"Error getting batch year distribution: {e}")
+            batch_year_distribution = []
         
-        batch_year_distribution = await DatabaseOperations.aggregate("students", batch_year_pipeline)
+        # Get section distribution within department with error handling
+        try:
+            section_pipeline = [
+                {"$match": student_match},
+                {"$group": {
+                    "_id": "$section",
+                    "student_count": {"$sum": 1}
+                }},
+                {"$sort": {"_id": 1}}
+            ]
+            section_distribution = await DatabaseOperations.aggregate("students", section_pipeline)
+        except Exception as e:
+            logger.warning(f"Error getting section distribution: {e}")
+            section_distribution = []
         
-        # Get section distribution within department
-        section_pipeline = [
-            {"$match": student_match},
-            {"$group": {
-                "_id": "$section",
-                "student_count": {"$sum": 1}
-            }},
-            {"$sort": {"_id": 1}}
-        ]
-        
-        section_distribution = await DatabaseOperations.aggregate("students", section_pipeline)
-        
+        # Ensure all values are safe defaults
         return {
-            "total_submissions": total_submissions,
-            "total_students": total_students,
+            "total_submissions": total_submissions or 0,
+            "total_students": total_students or 0,
             "average_rating": round(avg_rating, 2) if avg_rating else 0,
-            "batch_year_distribution": batch_year_distribution,
-            "section_distribution": section_distribution,
-            "submission_rate": round((total_submissions / total_students * 100), 2) if total_students > 0 else 0
+            "batch_year_distribution": batch_year_distribution or [],
+            "section_distribution": section_distribution or [],
+            "submission_rate": round((total_submissions / total_students * 100), 2) if total_students and total_students > 0 else 0
         }
     
     @staticmethod

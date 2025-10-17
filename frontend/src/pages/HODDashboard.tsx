@@ -107,6 +107,7 @@ export default function HODDashboard() {
   // Analytics state
   const [dashboardAnalytics, setDashboardAnalytics] = useState<any>(null);
   const [batchYearAnalytics, setBatchYearAnalytics] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     // Check if user is logged in and is HOD
@@ -128,6 +129,7 @@ export default function HODDashboard() {
 
   const loadDashboardData = async () => {
     try {
+      setIsLoading(true);
       // Load batch years and departments
       const batchYearsResponse = await apiService.getBatchYears();
       if (batchYearsResponse.success && batchYearsResponse.data?.batch_years) {
@@ -172,15 +174,50 @@ export default function HODDashboard() {
         setFeedbackData(bundlesResponse.data.bundles);
       }
 
-      // Load batch year analytics
-      const analyticsResponse = await apiService.getBatchYearAnalytics(user?.department);
-      if (analyticsResponse.success && analyticsResponse.data) {
-        setDashboardAnalytics(analyticsResponse.data.overall_stats);
-        setBatchYearAnalytics(analyticsResponse.data.batch_year_analytics);
+      // Load batch year analytics with enhanced error handling
+      try {
+        const analyticsResponse = await apiService.getBatchYearAnalytics(user?.department);
+        if (analyticsResponse.success && analyticsResponse.data) {
+          setDashboardAnalytics(analyticsResponse.data.overall_stats);
+          setBatchYearAnalytics(analyticsResponse.data.batch_year_analytics);
+        } else {
+          console.warn('Analytics response not successful:', analyticsResponse);
+          // Set default values
+          setDashboardAnalytics({
+            total_submissions: 0,
+            total_students: 0,
+            average_rating: 0,
+            submission_rate: 0
+          });
+          setBatchYearAnalytics([]);
+        }
+      } catch (analyticsError) {
+        console.error('Error loading analytics:', analyticsError);
+        toast.error('Failed to load analytics data');
+        // Set default values
+        setDashboardAnalytics({
+          total_submissions: 0,
+          total_students: 0,
+          average_rating: 0,
+          submission_rate: 0
+        });
+        setBatchYearAnalytics([]);
       }
+      
     } catch (error) {
       console.error('Error loading dashboard data:', error);
       toast.error('Failed to load dashboard data');
+      
+      // Set default values to prevent UI crashes
+      setDashboardAnalytics({
+        total_submissions: 0,
+        total_students: 0,
+        average_rating: 0,
+        submission_rate: 0
+      });
+      setBatchYearAnalytics([]);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -606,7 +643,11 @@ export default function HODDashboard() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Responses</p>
-                <h2 className="text-3xl font-bold">{dashboardAnalytics?.total_submissions || 0}</h2>
+                {isLoading ? (
+                  <div className="h-8 w-16 bg-muted animate-pulse rounded"></div>
+                ) : (
+                  <h2 className="text-3xl font-bold">{dashboardAnalytics?.total_submissions || 0}</h2>
+                )}
               </div>
               <div className="p-2 bg-primary/10 rounded-full text-primary">
                 <Users className="h-5 w-5" />
@@ -621,7 +662,11 @@ export default function HODDashboard() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Student Bundles</p>
-                <h2 className="text-3xl font-bold">{feedbackData.length}</h2>
+                {isLoading ? (
+                  <div className="h-8 w-16 bg-muted animate-pulse rounded"></div>
+                ) : (
+                  <h2 className="text-3xl font-bold">{feedbackData.length}</h2>
+                )}
               </div>
               <div className="p-2 bg-primary/10 rounded-full text-primary">
                 <Package className="h-5 w-5" />
@@ -636,7 +681,11 @@ export default function HODDashboard() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Average Rating</p>
-                <h2 className="text-3xl font-bold">{dashboardAnalytics?.average_rating || 0}/10</h2>
+                {isLoading ? (
+                  <div className="h-8 w-16 bg-muted animate-pulse rounded"></div>
+                ) : (
+                  <h2 className="text-3xl font-bold">{dashboardAnalytics?.average_rating || 0}/10</h2>
+                )}
               </div>
               <div className="p-2 bg-primary/10 rounded-full text-primary">
                 <Star className="h-5 w-5" />
@@ -651,7 +700,11 @@ export default function HODDashboard() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Students</p>
-                <h2 className="text-3xl font-bold">{dashboardAnalytics?.total_students || 0}</h2>
+                {isLoading ? (
+                  <div className="h-8 w-16 bg-muted animate-pulse rounded"></div>
+                ) : (
+                  <h2 className="text-3xl font-bold">{dashboardAnalytics?.total_students || 0}</h2>
+                )}
               </div>
               <div className="p-2 bg-primary/10 rounded-full text-primary">
                 <BookOpen className="h-5 w-5" />
@@ -836,9 +889,18 @@ export default function HODDashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {feedbackData.length === 0 && (
-                  <div className="text-center text-muted-foreground py-6">No bundles found</div>
-                )}
+                {isLoading ? (
+                  <div className="text-center py-6">
+                    <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-primary"></div>
+                    <p className="text-muted-foreground mt-2">Loading student bundles...</p>
+                  </div>
+                ) : feedbackData.length === 0 ? (
+                  <div className="text-center text-muted-foreground py-6">
+                    <Package className="h-12 w-12 mx-auto mb-4 text-muted-foreground/50" />
+                    <p className="text-lg font-medium">No feedback bundles found</p>
+                    <p className="text-sm">Students haven't submitted any feedback yet.</p>
+                  </div>
+                ) : null}
                 {feedbackData.map((bundle) => {
                   const isOpen = !!expandedBundles[bundle.id];
                   return (

@@ -32,11 +32,19 @@ class ApiService {
   }
 
   private async handleResponse<T>(response: Response): Promise<T> {
-    const data = await response.json();
+    let data;
+    try {
+      data = await response.json();
+    } catch (parseError) {
+      console.error('Failed to parse response JSON:', parseError);
+      throw new Error(`Server returned invalid response (${response.status})`);
+    }
     
     if (!response.ok) {
-      // Better error message handling
+      // Enhanced error message handling
       let errorMessage = 'API request failed';
+      
+      // Handle different error response formats
       if (data.message) {
         errorMessage = data.message;
       } else if (data.detail) {
@@ -47,6 +55,33 @@ class ApiService {
           errorMessage = data.errors.join(', ');
         } else if (typeof data.errors === 'object') {
           errorMessage = Object.values(data.errors).flat().join(', ');
+        }
+      } else {
+        // Provide specific error messages based on status code
+        switch (response.status) {
+          case 400:
+            errorMessage = 'Bad request - please check your input';
+            break;
+          case 401:
+            errorMessage = 'Authentication required - please log in again';
+            break;
+          case 403:
+            errorMessage = 'Access denied - insufficient permissions';
+            break;
+          case 404:
+            errorMessage = 'Resource not found';
+            break;
+          case 500:
+            errorMessage = 'Server error - please try again later';
+            break;
+          case 502:
+            errorMessage = 'Bad gateway - server is temporarily unavailable';
+            break;
+          case 503:
+            errorMessage = 'Service unavailable - server is overloaded';
+            break;
+          default:
+            errorMessage = `Request failed with status ${response.status}`;
         }
       }
       

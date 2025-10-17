@@ -123,6 +123,7 @@ async def submit_feedback(
         # Add additional metadata
         anonymous_submission.update({
             'student_id': student.id,  # Keep for internal tracking
+            'department': student.department,  # Add department field for analytics
             'submitted_at': datetime.utcnow(),
             'ip_address': 'hashed',  # In real implementation, hash the actual IP
             'user_agent': 'hashed',  # In real implementation, hash the actual user agent
@@ -636,7 +637,7 @@ async def get_batch_year_analytics(
         elif department:
             department_filter["department"] = department.upper()
         
-        # Get batch year analytics
+        # Get batch year analytics with improved error handling
         batch_year_pipeline = [
             {"$match": department_filter},
             {"$lookup": {
@@ -645,7 +646,7 @@ async def get_batch_year_analytics(
                 "foreignField": "id",
                 "as": "student_info"
             }},
-            {"$unwind": "$student_info"},
+            {"$unwind": {"path": "$student_info", "preserveNullAndEmptyArrays": True}},
             {"$group": {
                 "_id": {
                     "batch_year": "$student_info.batch_year",
@@ -670,6 +671,10 @@ async def get_batch_year_analytics(
         
         # Get overall department statistics
         overall_stats = await AnalyticsOperations.get_dashboard_summary(department_filter)
+        
+        # Ensure we return empty arrays instead of null/undefined
+        if not batch_year_analytics:
+            batch_year_analytics = []
         
         return APIResponse(
             success=True,
@@ -710,42 +715,64 @@ async def get_feedback_bundles(
             sort={"submitted_at": -1}
         )
         
-        # Convert to bundled format for frontend compatibility
+        # Return empty array if no submissions found
+        if not feedback_submissions:
+            return APIResponse(
+                success=True,
+                message="No feedback bundles found",
+                data={"bundles": [], "total": 0}
+            )
+        
+        # Convert to bundled format for frontend compatibility with error handling
         bundled_feedback = []
         for submission in feedback_submissions:
-            # Create anonymous student identifier
-            student_id = f"Student_{submission['anonymous_id'][:8]}"
-            
-            # Convert faculty feedbacks to the expected format
-            teacher_feedbacks = []
-            for faculty_feedback in submission.get('faculty_feedbacks', []):
-                # Convert question ratings to the expected format
-                question_ratings = []
-                for q_rating in faculty_feedback.get('question_ratings', []):
-                    question_ratings.append({
-                        "questionId": q_rating.get('question_id', ''),
-                        "question": q_rating.get('question', ''),
-                        "rating": q_rating.get('rating', 0),
-                        "weight": q_rating.get('weight', 0)
+            try:
+                # Create anonymous student identifier with null check
+                anonymous_id = submission.get('anonymous_id', 'unknown')
+                student_id = f"Student_{anonymous_id[:8]}" if anonymous_id else "Student_unknown"
+                
+                # Convert faculty feedbacks to the expected format
+                teacher_feedbacks = []
+                for faculty_feedback in submission.get('faculty_feedbacks', []):
+                    # Convert question ratings to the expected format
+                    question_ratings = []
+                    for q_rating in faculty_feedback.get('question_ratings', []):
+                        question_ratings.append({
+                            "questionId": q_rating.get('question_id', ''),
+                            "question": q_rating.get('question', ''),
+                            "rating": q_rating.get('rating', 0),
+                            "weight": q_rating.get('weight', 0)
+                        })
+                    
+                    teacher_feedbacks.append({
+                        "teacherId": faculty_feedback.get('faculty_id', ''),
+                        "teacherName": faculty_feedback.get('faculty_name', ''),
+                        "subject": faculty_feedback.get('subject', ''),
+                        "questionRatings": question_ratings,
+                        "overallRating": faculty_feedback.get('overall_rating', 0),
+                        "detailedFeedback": faculty_feedback.get('detailed_feedback', ''),
+                        "suggestions": faculty_feedback.get('suggestions', '')
                     })
                 
-                teacher_feedbacks.append({
-                    "teacherId": faculty_feedback.get('faculty_id', ''),
-                    "teacherName": faculty_feedback.get('faculty_name', ''),
-                    "subject": faculty_feedback.get('subject', ''),
-                    "questionRatings": question_ratings,
-                    "overallRating": faculty_feedback.get('overall_rating', 0),
-                    "detailedFeedback": faculty_feedback.get('detailed_feedback', ''),
-                    "suggestions": faculty_feedback.get('suggestions', '')
+                # Format submitted_at safely
+                submitted_at = submission.get('submitted_at')
+                submitted_at_str = ''
+                if submitted_at:
+                    if hasattr(submitted_at, 'isoformat'):
+                        submitted_at_str = submitted_at.isoformat()
+                    else:
+                        submitted_at_str = str(submitted_at)
+                
+                bundled_feedback.append({
+                    "id": submission.get('id', ''),
+                    "studentName": student_id,
+                    "studentSection": submission.get('student_section', 'A'),
+                    "teacherFeedbacks": teacher_feedbacks,
+                    "submittedAt": submitted_at_str
                 })
-            
-            bundled_feedback.append({
-                "id": submission['id'],
-                "studentName": student_id,
-                "studentSection": submission.get('student_section', 'A'),
-                "teacherFeedbacks": teacher_feedbacks,
-                "submittedAt": submission.get('submitted_at', '').isoformat() if submission.get('submitted_at') else ''
-            })
+            except Exception as e:
+                logger.warning(f"Error processing feedback submission {submission.get('id', 'unknown')}: {e}")
+                continue
         
         return APIResponse(
             success=True,

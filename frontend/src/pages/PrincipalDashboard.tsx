@@ -27,7 +27,7 @@ const PrincipalDashboard = () => {
   const [departments, setDepartments] = useState<Department[]>([]);
   const [batchYears, setBatchYears] = useState<BatchYear[]>([]);
   const [hods, setHODs] = useState<any[]>([]);
-  const [, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   
   // Form states
   const [newDepartment, setNewDepartment] = useState({ name: '', code: '', hod_id: '' });
@@ -63,14 +63,9 @@ const PrincipalDashboard = () => {
       return;
     }
 
-    // Load both legacy and bundled feedback data
-    const legacyData = JSON.parse(localStorage.getItem('feedbackData') || '[]');
-    const bundledData = JSON.parse(localStorage.getItem('bundledFeedbackData') || '[]');
-    setFeedbackData(legacyData);
-    setBundledFeedback(bundledData);
-    
-    // Load management data
+    // Load data from API instead of localStorage
     loadManagementData();
+    loadAnalyticsData();
   }, [user, navigate]);
 
   const loadManagementData = async () => {
@@ -97,6 +92,30 @@ const PrincipalDashboard = () => {
     } catch (error) {
       console.error('Error loading management data:', error);
       toast.error('Failed to load management data');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const loadAnalyticsData = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Load feedback analytics
+      const feedbackResponse = await apiService.getFeedbackAnalytics();
+      if (feedbackResponse.success && feedbackResponse.data) {
+        setFeedbackData(feedbackResponse.data);
+      }
+      
+      // Load bundled feedback
+      const bundledResponse = await apiService.getFeedbackBundles();
+      if (bundledResponse.success && bundledResponse.data?.bundles) {
+        setBundledFeedback(bundledResponse.data.bundles);
+      }
+      
+    } catch (error) {
+      console.error('Error loading analytics data:', error);
+      toast.error('Failed to load analytics data');
     } finally {
       setIsLoading(false);
     }
