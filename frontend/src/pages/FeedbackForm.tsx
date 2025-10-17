@@ -1,15 +1,16 @@
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { LogOut, Send, Star, CircleCheck as CheckCircle2, User } from "lucide-react";
+import { LogOut, Send, Star, CircleCheck as CheckCircle2, User, Save, Clock } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import TeacherFeedbackModal from "@/components/TeacherFeedbackModal";
 import { Teacher, IndividualFeedback, BundledFeedback, calculateWeightedScore } from "@/types/feedback";
 import { useTeachers } from "@/hooks/useTeachers";
 import { apiService } from "@/services/api";
+import { saveFeedbackDraft, loadFeedbackDraft, clearFeedbackDraft, hasFeedbackDraft, isDraftRecent } from "@/utils/feedbackDraft";
 
 const FeedbackForm = () => {
   const navigate = useNavigate();
@@ -17,9 +18,57 @@ const FeedbackForm = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedTeacher, setSelectedTeacher] = useState<Teacher | null>(null);
   const [teacherFeedbacks, setTeacherFeedbacks] = useState<Record<string, IndividualFeedback>>({});
+  const [draftLastSaved, setDraftLastSaved] = useState<Date | null>(null);
+  const [isDraftSaving, setIsDraftSaving] = useState(false);
   
   // Use the custom hook to fetch teachers from the backend
   const { teachers: sectionTeachers, loading: teachersLoading, error: teachersError } = useTeachers(user?.section);
+
+  // Load draft on component mount
+  useEffect(() => {
+    if (!user?.section) return;
+
+    const loadDraft = () => {
+      try {
+        const draft = loadFeedbackDraft(user.section);
+        if (draft && isDraftRecent(draft)) {
+          setTeacherFeedbacks(draft.teacherFeedbacks);
+          setDraftLastSaved(new Date(draft.lastSaved));
+          toast.success('Draft loaded successfully! Your previous feedback has been restored.');
+        } else if (draft && !isDraftRecent(draft)) {
+          // Clear old draft
+          clearFeedbackDraft(user.section);
+          toast.info('Previous draft was too old and has been cleared.');
+        }
+      } catch (error) {
+        console.error('Failed to load draft:', error);
+      }
+    };
+
+    loadDraft();
+  }, [user?.section]);
+
+  // Auto-save draft when teacherFeedbacks change
+  useEffect(() => {
+    if (!user?.section || Object.keys(teacherFeedbacks).length === 0) return;
+
+    const saveDraft = () => {
+      try {
+        setIsDraftSaving(true);
+        saveFeedbackDraft(user.section, teacherFeedbacks);
+        setDraftLastSaved(new Date());
+      } catch (error) {
+        console.error('Failed to save draft:', error);
+        toast.error('Failed to save draft. Please try again.');
+      } finally {
+        setIsDraftSaving(false);
+      }
+    };
+
+    // Debounce the save operation
+    const timer = setTimeout(saveDraft, 2000);
+    return () => clearTimeout(timer);
+  }, [teacherFeedbacks, user?.section]);
 
   const handleTeacherFeedbackSave = (feedback: IndividualFeedback) => {
     // Calculate weighted score and grade interpretation
@@ -76,6 +125,11 @@ const FeedbackForm = () => {
       
       if (response.success) {
         toast.success(`Feedback submitted successfully for ${feedbackCount} teachers!`);
+        
+        // Clear the draft after successful submission
+        if (user?.section) {
+          clearFeedbackDraft(user.section);
+        }
         
         // Navigate to success page or logout after a delay
         setTimeout(() => {
@@ -142,6 +196,48 @@ const FeedbackForm = () => {
                   {Object.keys(teacherFeedbacks).length} of {sectionTeachers.length} completed
                 </Badge>
               </div>
+              
+              {/* Draft Status */}
+              {Object.keys(teacherFeedbacks).length > 0 && (
+                <div className="mt-3 flex items-center justify-between">
+                  <div className="flex items-center space-x-2">
+                    {isDraftSaving ? (
+                      <>
+                        <Save className="h-4 w-4 text-primary animate-pulse" />
+                        <span className="text-sm text-primary">Saving draft...</span>
+                      </>
+                    ) : draftLastSaved ? (
+                      <>
+                        <Save className="h-4 w-4 text-success" />
+                        <span className="text-sm text-success">
+                          Draft saved {draftLastSaved.toLocaleTimeString()}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <Clock className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm text-muted-foreground">Auto-save enabled</span>
+                      </>
+                    )}
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      if (user?.section) {
+                        clearFeedbackDraft(user.section);
+                        setTeacherFeedbacks({});
+                        setDraftLastSaved(null);
+                        toast.success('Draft cleared successfully');
+                      }
+                    }}
+                    className="text-xs"
+                  >
+                    Clear Draft
+                  </Button>
+                </div>
+              )}
+              
               {teachersLoading && (
                 <p className="text-sm text-muted-foreground mt-2">Loading teachers...</p>
               )}
