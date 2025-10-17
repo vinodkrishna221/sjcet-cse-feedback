@@ -75,23 +75,42 @@ const PrincipalDashboard = () => {
       // Load departments
       const departmentsResponse = await apiService.getDepartments();
       if (departmentsResponse.success && departmentsResponse.data?.departments) {
-        setDepartments(departmentsResponse.data.departments);
+        const depts = Array.isArray(departmentsResponse.data.departments) 
+          ? departmentsResponse.data.departments 
+          : [];
+        setDepartments(depts);
+      } else {
+        setDepartments([]);
       }
       
       // Load batch years
       const batchYearsResponse = await apiService.getBatchYears();
       if (batchYearsResponse.success && batchYearsResponse.data?.batch_years) {
-        setBatchYears(batchYearsResponse.data.batch_years);
+        const batches = Array.isArray(batchYearsResponse.data.batch_years) 
+          ? batchYearsResponse.data.batch_years 
+          : [];
+        setBatchYears(batches);
+      } else {
+        setBatchYears([]);
       }
       
       // Load HODs
       const hodsResponse = await apiService.getHODs();
       if (hodsResponse.success && hodsResponse.data?.hods) {
-        setHODs(hodsResponse.data.hods);
+        const hodsList = Array.isArray(hodsResponse.data.hods) 
+          ? hodsResponse.data.hods 
+          : [];
+        setHODs(hodsList);
+      } else {
+        setHODs([]);
       }
     } catch (error) {
       console.error('Error loading management data:', error);
       toast.error('Failed to load management data');
+      // Reset to empty arrays on error
+      setDepartments([]);
+      setBatchYears([]);
+      setHODs([]);
     } finally {
       setIsLoading(false);
     }
@@ -104,7 +123,10 @@ const PrincipalDashboard = () => {
       // Load feedback analytics
       const feedbackResponse = await apiService.getFeedbackAnalytics();
       if (feedbackResponse.success && feedbackResponse.data) {
-        setFeedbackData(feedbackResponse.data);
+        const feedback = Array.isArray(feedbackResponse.data) 
+          ? feedbackResponse.data 
+          : [];
+        setFeedbackData(feedback);
       } else {
         setFeedbackData([]); // Ensure it's always an array
       }
@@ -112,7 +134,10 @@ const PrincipalDashboard = () => {
       // Load bundled feedback
       const bundledResponse = await apiService.getFeedbackBundles();
       if (bundledResponse.success && bundledResponse.data?.bundles) {
-        setBundledFeedback(bundledResponse.data.bundles);
+        const bundles = Array.isArray(bundledResponse.data.bundles) 
+          ? bundledResponse.data.bundles 
+          : [];
+        setBundledFeedback(bundles);
       } else {
         setBundledFeedback([]); // Ensure it's always an array
       }
@@ -120,6 +145,9 @@ const PrincipalDashboard = () => {
     } catch (error) {
       console.error('Error loading analytics data:', error);
       toast.error('Failed to load analytics data');
+      // Reset to empty arrays on error
+      setFeedbackData([]);
+      setBundledFeedback([]);
     } finally {
       setIsLoading(false);
     }
@@ -453,7 +481,7 @@ const PrincipalDashboard = () => {
   };
 
   const removeSection = (section: string) => {
-    setNewSections(newSections.filter(s => s !== section));
+    setNewSections((Array.isArray(newSections) ? newSections : []).filter(s => s !== section));
   };
 
   const handleEditBatchYear = (batchYear: BatchYear) => {
@@ -514,60 +542,85 @@ const PrincipalDashboard = () => {
 
   // Calculate comprehensive statistics combining both data sources
   const allFeedbackItems = [
-    ...(feedbackData || []),
-    ...(bundledFeedback || []).flatMap(bundle => 
-      (bundle.teacherFeedbacks || []).map(tf => ({
-        id: bundle.id,
-        subject: tf.subject,
-        faculty: tf.teacherName,
-        rating: tf.overallRating,
+    ...(Array.isArray(feedbackData) ? feedbackData : []),
+    ...(Array.isArray(bundledFeedback) ? bundledFeedback : []).flatMap(bundle => {
+      if (!bundle || !Array.isArray(bundle.teacherFeedbacks)) {
+        return [];
+      }
+      return bundle.teacherFeedbacks.map(tf => ({
+        id: bundle.id || '',
+        subject: tf.subject || '',
+        faculty: tf.teacherName || '',
+        rating: tf.overallRating || 0,
         feedback: tf.detailedFeedback || '',
-        suggestions: tf.suggestions,
-        submittedAt: bundle.submittedAt,
-        studentSection: bundle.studentSection
-      }))
-    )
+        suggestions: tf.suggestions || '',
+        submittedAt: bundle.submittedAt || new Date().toISOString(),
+        studentSection: bundle.studentSection || ''
+      }));
+    })
   ];
 
-  const totalFeedback = allFeedbackItems.length;
+  const totalFeedback = Array.isArray(allFeedbackItems) ? allFeedbackItems.length : 0;
   const averageRating = totalFeedback > 0 
-    ? (allFeedbackItems.reduce((sum, item) => sum + item.rating, 0) / totalFeedback).toFixed(1)
+    ? (Array.isArray(allFeedbackItems) 
+        ? allFeedbackItems.reduce((sum, item) => sum + (item?.rating || 0), 0) / totalFeedback 
+        : 0).toFixed(1)
     : '0';
   
-  const sectionA = allFeedbackItems.filter(item => item.studentSection === 'A').length;
-  const sectionB = allFeedbackItems.filter(item => item.studentSection === 'B').length;
+  const sectionA = Array.isArray(allFeedbackItems) 
+    ? allFeedbackItems.filter(item => item && item.studentSection === 'A').length 
+    : 0;
+  const sectionB = Array.isArray(allFeedbackItems) 
+    ? allFeedbackItems.filter(item => item && item.studentSection === 'B').length 
+    : 0;
 
   // Subject performance analysis
   const subjectPerformance: Record<string, { total: number; count: number; ratings: number[] }> = {};
-  allFeedbackItems.forEach(item => {
-    const subject = item.subject;
-    if (!subjectPerformance[subject]) {
-      subjectPerformance[subject] = { total: 0, count: 0, ratings: [] };
-    }
-    const subjectData = subjectPerformance[subject];
-    subjectData.total += item.rating;
-    subjectData.count += 1;
-    subjectData.ratings.push(item.rating);
-  });
+  if (Array.isArray(allFeedbackItems)) {
+    allFeedbackItems.forEach(item => {
+      if (item && item.subject) {
+        const subject = item.subject;
+        if (!subjectPerformance[subject]) {
+          subjectPerformance[subject] = { total: 0, count: 0, ratings: [] };
+        }
+        const subjectData = subjectPerformance[subject];
+        subjectData.total += item.rating || 0;
+        subjectData.count += 1;
+        subjectData.ratings.push(item.rating || 0);
+      }
+    });
+  }
 
   // Faculty performance analysis
   const facultyPerformance: Record<string, { total: number; count: number; ratings: number[]; subjects: Set<string> }> = {};
-  allFeedbackItems.forEach(item => {
-    const faculty = item.faculty;
-    if (!facultyPerformance[faculty]) {
-      facultyPerformance[faculty] = { total: 0, count: 0, ratings: [], subjects: new Set() };
-    }
-    const facultyData = facultyPerformance[faculty];
-    facultyData.total += item.rating;
-    facultyData.count += 1;
-    facultyData.ratings.push(item.rating);
-    facultyData.subjects.add(item.subject);
-  });
+  if (Array.isArray(allFeedbackItems)) {
+    allFeedbackItems.forEach(item => {
+      if (item && item.faculty) {
+        const faculty = item.faculty;
+        if (!facultyPerformance[faculty]) {
+          facultyPerformance[faculty] = { total: 0, count: 0, ratings: [], subjects: new Set() };
+        }
+        const facultyData = facultyPerformance[faculty];
+        facultyData.total += item.rating || 0;
+        facultyData.count += 1;
+        facultyData.ratings.push(item.rating || 0);
+        if (item.subject) {
+          facultyData.subjects.add(item.subject);
+        }
+      }
+    });
+  }
 
   // Department performance metrics
-  const excellentRatings = allFeedbackItems.filter(item => item.rating >= 8).length;
-  const averageRatings = allFeedbackItems.filter(item => item.rating >= 6 && item.rating < 8).length;
-  const poorRatings = allFeedbackItems.filter(item => item.rating < 6).length;
+  const excellentRatings = Array.isArray(allFeedbackItems) 
+    ? allFeedbackItems.filter(item => item && (item.rating || 0) >= 8).length 
+    : 0;
+  const averageRatings = Array.isArray(allFeedbackItems) 
+    ? allFeedbackItems.filter(item => item && (item.rating || 0) >= 6 && (item.rating || 0) < 8).length 
+    : 0;
+  const poorRatings = Array.isArray(allFeedbackItems) 
+    ? allFeedbackItems.filter(item => item && (item.rating || 0) < 6).length 
+    : 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/5 to-accent/5">
@@ -759,7 +812,7 @@ const PrincipalDashboard = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-6">
-                  {(bundledFeedback || []).map((bundle) => (
+                  {(Array.isArray(bundledFeedback) ? bundledFeedback : []).map((bundle) => (
                     <div key={bundle.id} className="border border-border rounded-lg p-6">
                       <div className="flex items-start justify-between mb-4">
                         <div>
@@ -781,7 +834,7 @@ const PrincipalDashboard = () => {
                       </div>
                       
                       <div className="space-y-4">
-                        {(bundle.teacherFeedbacks || []).map((tf, index) => (
+                        {(Array.isArray(bundle.teacherFeedbacks) ? bundle.teacherFeedbacks : []).map((tf, index) => (
                           <div key={index} className="bg-muted/20 rounded-lg p-4">
                             <div className="flex items-center justify-between mb-3">
                               <div>
@@ -795,7 +848,7 @@ const PrincipalDashboard = () => {
                             
                             {/* Question Categories Performance */}
                             <div className="grid grid-cols-2 md:grid-cols-5 gap-2 mb-3">
-                              {(tf.questionRatings || []).slice(0, 5).map((qr, qIndex) => (
+                              {(Array.isArray(tf.questionRatings) ? tf.questionRatings : []).slice(0, 5).map((qr, qIndex) => (
                                 <div key={qIndex} className="text-xs">
                                   <div className="font-medium truncate">
                                     {FEEDBACK_QUESTIONS.find(q => q.id === qr.questionId)?.category}
@@ -1083,7 +1136,7 @@ const PrincipalDashboard = () => {
                                 </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="none">No Department</SelectItem>
-                                  {(departments || []).map((dept) => (
+                                  {(Array.isArray(departments) ? departments : []).map((dept) => (
                                     <SelectItem key={dept.id} value={dept.code}>
                                       {dept.name} ({dept.code})
                                     </SelectItem>
@@ -1141,7 +1194,7 @@ const PrincipalDashboard = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {(hods || []).map((hod) => (
+                        {(Array.isArray(hods) ? hods : []).map((hod) => (
                           <TableRow key={hod.id}>
                             <TableCell>{hod.name}</TableCell>
                             <TableCell>{hod.username}</TableCell>
@@ -1182,7 +1235,7 @@ const PrincipalDashboard = () => {
                                       <SelectValue placeholder="Assign" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                      {(departments || []).filter(dept => !dept.hod_id).map((dept) => (
+                                      {(Array.isArray(departments) ? departments : []).filter(dept => !dept.hod_id).map((dept) => (
                                         <SelectItem key={dept.id} value={dept.code}>
                                           {dept.code}
                                         </SelectItem>
@@ -1262,7 +1315,7 @@ const PrincipalDashboard = () => {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="none">No HOD assigned</SelectItem>
-                                {(hods || []).map((hod) => (
+                                {(Array.isArray(hods) ? hods : []).map((hod) => (
                                   <SelectItem key={hod.id} value={hod.id}>
                                     {hod.name} ({hod.username})
                                   </SelectItem>
@@ -1297,7 +1350,7 @@ const PrincipalDashboard = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {(departments || []).map((dept) => (
+                        {(Array.isArray(departments) ? departments : []).map((dept) => (
                           <TableRow key={dept.id}>
                             <TableCell>{dept.name}</TableCell>
                             <TableCell>
@@ -1340,7 +1393,7 @@ const PrincipalDashboard = () => {
                                       <SelectValue placeholder="Assign HOD" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                      {(hods || []).filter(hod => !hod.department).map((hod) => (
+                                      {(Array.isArray(hods) ? hods : []).filter(hod => !hod.department).map((hod) => (
                                         <SelectItem key={hod.id} value={hod.id}>
                                           {hod.name}
                                         </SelectItem>
@@ -1412,7 +1465,7 @@ const PrincipalDashboard = () => {
                                   <SelectValue placeholder="Select department" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {(departments || []).map((dept) => (
+                                  {(Array.isArray(departments) ? departments : []).map((dept) => (
                                     <SelectItem key={dept.id} value={dept.code}>
                                       {dept.name} ({dept.code})
                                     </SelectItem>
@@ -1437,7 +1490,7 @@ const PrincipalDashboard = () => {
                                         } else {
                                           setNewBatchYear(prev => ({
                                             ...prev,
-                                            sections: prev.sections.filter(s => s !== section)
+                                            sections: (Array.isArray(prev.sections) ? prev.sections : []).filter(s => s !== section)
                                           }));
                                         }
                                       }}
@@ -1487,7 +1540,7 @@ const PrincipalDashboard = () => {
                                     <SelectValue placeholder="Select batch year" />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {(batchYears || []).map((batch) => (
+                                    {(Array.isArray(batchYears) ? batchYears : []).map((batch) => (
                                       <SelectItem key={batch.id} value={batch.id}>
                                         {batch.year_range} {batch.department}
                                       </SelectItem>
@@ -1498,7 +1551,7 @@ const PrincipalDashboard = () => {
                               <div>
                                 <Label>Sections</Label>
                                 <div className="flex flex-wrap gap-2 mb-2">
-                                  {(newSections || []).map((section) => (
+                                  {(Array.isArray(newSections) ? newSections : []).map((section) => (
                                     <Badge key={section} variant="secondary" className="px-2 py-1">
                                       Section {section}
                                       <button 
@@ -1558,13 +1611,13 @@ const PrincipalDashboard = () => {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {(batchYears || []).map((batch) => (
+                          {(Array.isArray(batchYears) ? batchYears : []).map((batch) => (
                             <TableRow key={batch.id}>
                               <TableCell>{batch.year_range}</TableCell>
                               <TableCell>{batch.department}</TableCell>
                               <TableCell>
                                 <div className="flex gap-1">
-                                  {(batch.sections || []).map((section) => (
+                                  {(Array.isArray(batch.sections) ? batch.sections : []).map((section) => (
                                     <Badge key={section} variant="outline">
                                       {section}
                                     </Badge>
@@ -1667,7 +1720,7 @@ const PrincipalDashboard = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No HOD assigned</SelectItem>
-                  {(hods || []).map((hod) => (
+                  {(Array.isArray(hods) ? hods : []).map((hod) => (
                     <SelectItem key={hod.id} value={hod.id}>
                       {hod.name} ({hod.username})
                     </SelectItem>
@@ -1746,7 +1799,7 @@ const PrincipalDashboard = () => {
                   <SelectValue placeholder="Select department" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(departments || []).map((dept) => (
+                  {(Array.isArray(departments) ? departments : []).map((dept) => (
                     <SelectItem key={dept.id} value={dept.code}>
                       {dept.name} ({dept.code})
                     </SelectItem>
@@ -1811,7 +1864,7 @@ const PrincipalDashboard = () => {
                   <SelectValue placeholder="Select department" />
                 </SelectTrigger>
                 <SelectContent>
-                  {(departments || []).map((dept) => (
+                  {(Array.isArray(departments) ? departments : []).map((dept) => (
                     <SelectItem key={dept.id} value={dept.code}>
                       {dept.name} ({dept.code})
                     </SelectItem>
@@ -1831,7 +1884,7 @@ const PrincipalDashboard = () => {
                       className="h-4 w-4 p-0"
                       onClick={() => setEditingBatchYear((prev: BatchYear | null) => prev ? {
                         ...prev,
-                        sections: prev.sections?.filter(s => s !== section) || []
+                        sections: (Array.isArray(prev.sections) ? prev.sections : []).filter(s => s !== section)
                       } : null)}
                     >
                       ×
