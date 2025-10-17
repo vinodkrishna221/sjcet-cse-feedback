@@ -277,157 +277,144 @@ const FeedbackForm = () => {
               <>
                 {/* Progress Summary */}
                 <div className="mb-6 p-4 bg-primary/5 rounded-lg border border-primary/20">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <User className="h-5 w-5 text-primary" />
-                  <span className="font-medium">Feedback Progress</span>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-2">
+                      <User className="h-5 w-5 text-primary" />
+                      <span className="font-medium">Feedback Progress</span>
+                    </div>
+                    <Badge variant="secondary">
+                      {Object.keys(teacherFeedbacks).length} of {sectionTeachers.length} completed
+                    </Badge>
+                  </div>
+                  
+                  {/* Draft Status */}
+                  {Object.keys(teacherFeedbacks).length > 0 && (
+                    <div className="mt-3 flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        {isDraftSaving ? (
+                          <>
+                            <Save className="h-4 w-4 text-primary animate-pulse" />
+                            <span className="text-sm text-primary">Saving draft...</span>
+                          </>
+                        ) : draftLastSaved ? (
+                          <>
+                            <Save className="h-4 w-4 text-success" />
+                            <span className="text-sm text-success">
+                              Draft saved {draftLastSaved.toLocaleTimeString()}
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <Clock className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-sm text-muted-foreground">Auto-save enabled</span>
+                          </>
+                        )}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (user?.section) {
+                            clearFeedbackDraft(user.section);
+                            setTeacherFeedbacks({});
+                            setDraftLastSaved(null);
+                            toast.success('Draft cleared successfully');
+                          }
+                        }}
+                        className="text-xs"
+                      >
+                        Clear Draft
+                      </Button>
+                    </div>
+                  )}
+                  
+                  {teachersLoading && (
+                    <p className="text-sm text-muted-foreground mt-2">Loading teachers...</p>
+                  )}
+                  {teachersError && (
+                    <p className="text-sm text-destructive mt-2">Error loading teachers: {teachersError}</p>
+                  )}
                 </div>
-                <Badge variant="secondary">
-                  {Object.keys(teacherFeedbacks).length} of {sectionTeachers.length} completed
-                </Badge>
-              </div>
-              
-              {/* Draft Status */}
-              {Object.keys(teacherFeedbacks).length > 0 && (
-                <div className="mt-3 flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    {isDraftSaving ? (
-                      <>
-                        <Save className="h-4 w-4 text-primary animate-pulse" />
-                        <span className="text-sm text-primary">Saving draft...</span>
-                      </>
-                    ) : draftLastSaved ? (
-                      <>
-                        <Save className="h-4 w-4 text-success" />
-                        <span className="text-sm text-success">
-                          Draft saved {draftLastSaved.toLocaleTimeString()}
-                        </span>
-                      </>
+
+                {/* Teachers List */}
+                <div className="space-y-4 mb-8">
+                  <h3 className="text-lg font-semibold">Your Teachers - Section {user?.section}</h3>
+                  {teachersLoading ? (
+                    <div className="text-center py-8">
+                      <p className="text-muted-foreground">Loading teachers...</p>
+                    </div>
+                  ) : teachersError ? (
+                    <div className="text-center py-8">
+                      <p className="text-destructive">Failed to load teachers: {teachersError}</p>
+                    </div>
+                  ) : (
+                    <div className="grid gap-4">
+                      {sectionTeachers.map((teacher) => {
+                        const hasFeedback = !!teacherFeedbacks[teacher.id];
+                        
+                        return (
+                          <div 
+                            key={teacher.id} 
+                            className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-accent/5 transition-colors"
+                          >
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-3">
+                                <div>
+                                  <h4 className="font-medium">{teacher.name}</h4>
+                                  <p className="text-sm text-muted-foreground">{teacher.subject}</p>
+                                  {hasFeedback && (
+                                    <p className="text-xs text-primary">
+                                      {teacherFeedbacks[teacher.id].questionRatings.length} questions rated
+                                    </p>
+                                  )}
+                                </div>
+                                {hasFeedback && (
+                                  <CheckCircle2 className="h-5 w-5 text-success" />
+                                )}
+                              </div>
+                            </div>
+                            
+                            <div className="flex items-center space-x-3">
+                              {hasFeedback && (
+                                <Badge variant="outline" className="text-success border-success">
+                                  Overall: {teacherFeedbacks[teacher.id].overallRating}/10
+                                </Badge>
+                              )}
+                              <Button
+                                variant={hasFeedback ? "outline" : "default"}
+                                onClick={() => setSelectedTeacher(teacher)}
+                                className={hasFeedback ? "border-success text-success hover:bg-success/10" : "btn-academic"}
+                              >
+                                {hasFeedback ? 'Edit Feedback' : 'Give Feedback'}
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Submit All Button */}
+                <div className="pt-4 border-t border-border">
+                  <Button
+                    onClick={handleSubmitAllFeedback}
+                    disabled={isSubmitting || Object.keys(teacherFeedbacks).length === 0}
+                    className="w-full btn-hero text-lg py-6"
+                  >
+                    {isSubmitting ? (
+                      'Submitting All Feedback...'
                     ) : (
                       <>
-                        <Clock className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm text-muted-foreground">Auto-save enabled</span>
+                        <Send className="h-5 w-5 mr-2" />
+                        Submit All Feedback
                       </>
                     )}
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      if (user?.section) {
-                        clearFeedbackDraft(user.section);
-                        setTeacherFeedbacks({});
-                        setDraftLastSaved(null);
-                        toast.success('Draft cleared successfully');
-                      }
-                    }}
-                    className="text-xs"
-                  >
-                    Clear Draft
                   </Button>
+                  <p className="text-xs text-muted-foreground text-center mt-2">
+                    You can submit feedback for individual teachers and submit all at once
+                  </p>
                 </div>
-              )}
-              
-              {teachersLoading && (
-                <p className="text-sm text-muted-foreground mt-2">Loading teachers...</p>
-              )}
-              {teachersError && (
-                <p className="text-sm text-destructive mt-2">Error loading teachers: {teachersError}</p>
-              )}
-            </div>
-
-            {/* Teachers List */}
-            <div className="space-y-4 mb-8">
-              <h3 className="text-lg font-semibold">Your Teachers - Section {user?.section}</h3>
-              {teachersLoading ? (
-                <div className="text-center py-8">
-                  <p className="text-muted-foreground">Loading teachers...</p>
-                </div>
-              ) : teachersError ? (
-                <div className="text-center py-8">
-                  <p className="text-destructive">Failed to load teachers: {teachersError}</p>
-                </div>
-              ) : (
-                <div className="grid gap-4">
-                  {sectionTeachers.map((teacher) => {
-                    const hasFeedback = !!teacherFeedbacks[teacher.id];
-                    
-                    return (
-                      <div 
-                        key={teacher.id} 
-                        className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-accent/5 transition-colors"
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-3">
-                            <div>
-                              <h4 className="font-medium">{teacher.name}</h4>
-                              <p className="text-sm text-muted-foreground">{teacher.subject}</p>
-                              {hasFeedback && (
-                                <p className="text-xs text-primary">
-                                  {teacherFeedbacks[teacher.id].questionRatings.length} questions rated
-                                </p>
-                              )}
-                            </div>
-                            {hasFeedback && (
-                              <CheckCircle2 className="h-5 w-5 text-success" />
-                            )}
-                          </div>
-                        </div>
-                        
-                        <div className="flex items-center space-x-3">
-                          {hasFeedback && (
-                            <Badge variant="outline" className="text-success border-success">
-                              Overall: {teacherFeedbacks[teacher.id].overallRating}/10
-                            </Badge>
-                          )}
-                          <Button
-                            variant={hasFeedback ? "outline" : "default"}
-                            onClick={() => setSelectedTeacher(teacher)}
-                            className={hasFeedback ? "border-success text-success hover:bg-success/10" : "btn-academic"}
-                          >
-                            {hasFeedback ? 'Edit Feedback' : 'Give Feedback'}
-                          </Button>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Submit All Button */}
-            <div className="pt-4 border-t border-border">
-              <Button
-                onClick={handleSubmitAllFeedback}
-                disabled={isSubmitting || Object.keys(teacherFeedbacks).length === 0}
-                className="w-full btn-hero text-lg py-6"
-              >
-                {isSubmitting ? (
-                  'Submitting All Feedback...'
-                ) : (
-                  <>
-                    <Send className="h-5 w-5 mr-2" />
-                    Submit All Feedback
-                  </>
-                )}
-              </Button>
-              <p className="text-xs text-muted-foreground text-center mt-2">
-                You can submit feedback for individual teachers and submit all at once
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Teacher Feedback Modal */}
-        {selectedTeacher && (
-          <TeacherFeedbackModal
-            teacher={selectedTeacher}
-            isOpen={!!selectedTeacher}
-            onClose={() => setSelectedTeacher(null)}
-            onSave={handleTeacherFeedbackSave}
-            existingFeedback={teacherFeedbacks[selectedTeacher.id]}
-          />
-        )}
 
                 {/* Privacy Note */}
                 <div className="mt-6 p-4 bg-success/10 rounded-lg border border-success/20">
@@ -446,6 +433,17 @@ const FeedbackForm = () => {
             )}
           </CardContent>
         </Card>
+
+        {/* Teacher Feedback Modal */}
+        {selectedTeacher && (
+          <TeacherFeedbackModal
+            teacher={selectedTeacher}
+            isOpen={!!selectedTeacher}
+            onClose={() => setSelectedTeacher(null)}
+            onSave={handleTeacherFeedbackSave}
+            existingFeedback={teacherFeedbacks[selectedTeacher.id]}
+          />
+        )}
       </main>
     </div>
   );
