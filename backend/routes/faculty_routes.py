@@ -459,7 +459,7 @@ async def get_faculty_by_section(
                 "sections": {"$in": [section.upper()]},
                 "is_active": True
             },
-            sort=[("name", 1)]
+            sort={"name": 1}
         )
         
         # Format for frontend compatibility
