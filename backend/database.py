@@ -83,13 +83,16 @@ class DatabaseOperations:
     
     @staticmethod
     async def find_many(collection: str, filter_dict: Dict[str, Any] = None, 
-                       limit: int = None, sort: List[tuple] = None) -> List[Dict[str, Any]]:
-        """Find multiple documents in collection"""
+                       skip: Optional[int] = None, limit: Optional[int] = None, 
+                       sort: Optional[Dict[str, int]] = None) -> List[Dict[str, Any]]:
+        """Find multiple documents in collection with pagination and sorting"""
         db = get_database()
         cursor = db[collection].find(filter_dict or {})
         
         if sort:
-            cursor = cursor.sort(sort)
+            cursor = cursor.sort(list(sort.items()))
+        if skip:
+            cursor = cursor.skip(skip)
         if limit:
             cursor = cursor.limit(limit)
             

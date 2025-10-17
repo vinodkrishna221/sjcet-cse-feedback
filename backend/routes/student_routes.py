@@ -28,6 +28,7 @@ async def get_current_admin(credentials: HTTPAuthorizationCredentials = Depends(
         )
     return admin
 
+@router.get("", response_model=APIResponse)
 @router.get("/", response_model=APIResponse)
 async def get_all_students(
     section: Optional[str] = None,
