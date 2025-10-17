@@ -20,9 +20,40 @@ const FeedbackForm = () => {
   const [teacherFeedbacks, setTeacherFeedbacks] = useState<Record<string, IndividualFeedback>>({});
   const [draftLastSaved, setDraftLastSaved] = useState<Date | null>(null);
   const [isDraftSaving, setIsDraftSaving] = useState(false);
+  const [hasAlreadySubmitted, setHasAlreadySubmitted] = useState(false);
+  const [submissionStatus, setSubmissionStatus] = useState<any>(null);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(true);
   
   // Use the custom hook to fetch teachers from the backend
   const { teachers: sectionTeachers, loading: teachersLoading, error: teachersError } = useTeachers(user?.section);
+
+  // Check submission status on component mount
+  useEffect(() => {
+    const checkSubmissionStatus = async () => {
+      if (!user?.section) return;
+      
+      try {
+        setIsCheckingStatus(true);
+        const response = await apiService.getFeedbackSubmissionStatus();
+        
+        if (response.success && response.data) {
+          setSubmissionStatus(response.data);
+          setHasAlreadySubmitted(response.data.has_submitted);
+          
+          if (response.data.has_submitted) {
+            toast.info('You have already submitted feedback for this semester. You cannot submit again.');
+          }
+        }
+      } catch (error) {
+        console.error('Failed to check submission status:', error);
+        toast.error('Failed to check submission status. Please try again.');
+      } finally {
+        setIsCheckingStatus(false);
+      }
+    };
+
+    checkSubmissionStatus();
+  }, [user?.section]);
 
   // Load draft on component mount
   useEffect(() => {
@@ -185,8 +216,53 @@ const FeedbackForm = () => {
             </p>
           </CardHeader>
           <CardContent>
-            {/* Progress Summary */}
-            <div className="mb-6 p-4 bg-primary/5 rounded-lg border border-primary/20">
+            {/* Submission Status Check */}
+            {isCheckingStatus && (
+              <div className="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="flex items-center space-x-2">
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                  <span className="text-blue-600">Checking submission status...</span>
+                </div>
+              </div>
+            )}
+
+            {/* Already Submitted Status */}
+            {!isCheckingStatus && hasAlreadySubmitted && (
+              <div className="mb-6 p-4 bg-green-50 rounded-lg border border-green-200">
+                <div className="flex items-center space-x-2">
+                  <CheckCircle2 className="h-5 w-5 text-green-600" />
+                  <div>
+                    <h3 className="font-medium text-green-800">Feedback Already Submitted</h3>
+                    <p className="text-sm text-green-600 mt-1">
+                      You have already submitted feedback for {submissionStatus?.semester} semester ({submissionStatus?.academic_year}).
+                      {submissionStatus?.submitted_at && (
+                        <span className="block mt-1">
+                          Submitted on: {new Date(submissionStatus.submitted_at).toLocaleString()}
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-sm text-green-600 mt-2">
+                      Thank you for your feedback! You cannot submit again for this semester.
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-4 flex space-x-3">
+                  <Button
+                    onClick={handleLogout}
+                    className="bg-green-600 hover:bg-green-700"
+                  >
+                    <LogOut className="h-4 w-4 mr-2" />
+                    Logout
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Feedback Form - Only show if not already submitted */}
+            {!isCheckingStatus && !hasAlreadySubmitted && (
+              <>
+                {/* Progress Summary */}
+                <div className="mb-6 p-4 bg-primary/5 rounded-lg border border-primary/20">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-2">
                   <User className="h-5 w-5 text-primary" />
@@ -339,19 +415,23 @@ const FeedbackForm = () => {
           />
         )}
 
-        {/* Privacy Note */}
-        <div className="mt-6 p-4 bg-success/10 rounded-lg border border-success/20">
-          <div className="flex items-start space-x-3">
-            <Star className="h-5 w-5 text-success mt-0.5" />
-            <div>
-              <h4 className="font-medium text-success mb-1">Anonymous Feedback</h4>
-              <p className="text-sm text-success/80">
-                Your identity remains completely anonymous. The feedback will only include your section 
-                information to help with analysis, but not your personal details.
-              </p>
-            </div>
-          </div>
-        </div>
+                {/* Privacy Note */}
+                <div className="mt-6 p-4 bg-success/10 rounded-lg border border-success/20">
+                  <div className="flex items-start space-x-3">
+                    <Star className="h-5 w-5 text-success mt-0.5" />
+                    <div>
+                      <h4 className="font-medium text-success mb-1">Anonymous Feedback</h4>
+                      <p className="text-sm text-success/80">
+                        Your identity remains completely anonymous. The feedback will only include your section 
+                        information to help with analysis, but not your personal details.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
       </main>
     </div>
   );

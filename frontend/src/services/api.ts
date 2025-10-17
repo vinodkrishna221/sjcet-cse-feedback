@@ -129,6 +129,21 @@ class ApiService {
     return this.handleResponse<ApiResponse>(response);
   }
 
+  // Check feedback submission status
+  async getFeedbackSubmissionStatus(semester?: string, academicYear?: string) {
+    const params = new URLSearchParams();
+    if (semester) params.append('semester', semester);
+    if (academicYear) params.append('academic_year', academicYear);
+    
+    const url = `${API_BASE_URL}/feedback/submission-status${params.toString() ? `?${params.toString()}` : ''}`;
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: this.getAuthHeaders()
+    });
+
+    return this.handleResponse<ApiResponse>(response);
+  }
+
   // Submit feedback
   async submitFeedback(feedbackData: any) {
     const response = await fetch(`${API_BASE_URL}/feedback/submit`, {

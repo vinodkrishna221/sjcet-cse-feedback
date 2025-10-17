@@ -168,6 +168,65 @@ async def submit_feedback(
             detail="Error submitting feedback"
         )
 
+@router.get("/submission-status", response_model=APIResponse)
+async def get_submission_status(
+    semester: Optional[str] = None,
+    academic_year: Optional[str] = None,
+    student: Any = Depends(get_current_student)
+):
+    """Check if student has already submitted feedback for the current semester"""
+    try:
+        # Use current semester/year if not provided
+        if not semester or not academic_year:
+            from datetime import datetime
+            now = datetime.utcnow()
+            month = now.month
+            year = now.year
+            
+            # Determine semester based on month
+            semester = "Even" if month >= 1 and month <= 6 else "Odd"
+            academic_year = f"{year}-{year + 1}"
+        
+        # Check if student has already submitted feedback
+        existing_feedback = await DatabaseOperations.find_one(
+            "feedback_submissions",
+            {
+                "student_id": student.id,
+                "semester": semester,
+                "academic_year": academic_year
+            }
+        )
+        
+        if existing_feedback:
+            return APIResponse(
+                success=True,
+                message="Feedback already submitted",
+                data={
+                    "has_submitted": True,
+                    "submitted_at": existing_feedback.get("submitted_at"),
+                    "semester": semester,
+                    "academic_year": academic_year,
+                    "submission_id": existing_feedback.get("id")
+                }
+            )
+        else:
+            return APIResponse(
+                success=True,
+                message="No feedback submitted yet",
+                data={
+                    "has_submitted": False,
+                    "semester": semester,
+                    "academic_year": academic_year
+                }
+            )
+            
+    except Exception as e:
+        logger.error(f"Error checking submission status: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error checking submission status"
+        )
+
 @router.get("/analytics/faculty/{faculty_id}", response_model=APIResponse)
 async def get_faculty_feedback_analytics(
     faculty_id: str,
