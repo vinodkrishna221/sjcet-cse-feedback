@@ -495,6 +495,13 @@ class ApiService {
     return this.handleResponse<ApiResponse>(response);
   }
 
+  // Get all departments (public - for students)
+  async getPublicDepartments() {
+    const response = await fetch(`${API_BASE_URL}/admin/departments/public`);
+
+    return this.handleResponse<ApiResponse>(response);
+  }
+
   async updateDepartment(deptId: string, departmentData: {
     name: string;
     code: string;
@@ -542,6 +549,17 @@ class ApiService {
     const response = await fetch(`${API_BASE_URL}/admin/batch-years`, {
       headers: this.getAuthHeaders()
     });
+
+    return this.handleResponse<ApiResponse>(response);
+  }
+
+  // Get all batch years (public - for students)
+  async getPublicBatchYears(department?: string) {
+    const url = department 
+      ? `${API_BASE_URL}/admin/batch-years/public?department=${department}`
+      : `${API_BASE_URL}/admin/batch-years/public`;
+    
+    const response = await fetch(url);
 
     return this.handleResponse<ApiResponse>(response);
   }

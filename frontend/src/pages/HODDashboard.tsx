@@ -150,9 +150,6 @@ export default function HODDashboard() {
       );
       if (studentsResponse.success && studentsResponse.data?.data) {
         setStudents(studentsResponse.data.data);
-        console.log('Students loaded:', studentsResponse.data.data);
-      } else {
-        console.log('No students found or API error:', studentsResponse);
       }
 
       // Load teachers with department filter
@@ -580,11 +577,6 @@ export default function HODDashboard() {
   // Students per section
   const sectionAStudents = students.filter(s => s.section === 'A').length;
   const sectionBStudents = students.filter(s => s.section === 'B').length;
-  
-  // Debug logging
-  console.log('Students data:', students);
-  console.log('Section A students:', sectionAStudents);
-  console.log('Section B students:', sectionBStudents);
 
   return (
     <div className="container mx-auto py-6 space-y-6">

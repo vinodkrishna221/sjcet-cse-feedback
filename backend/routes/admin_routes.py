@@ -591,6 +591,38 @@ async def create_department(
             detail="Error creating department"
         )
 
+@router.get("/departments/public", response_model=APIResponse)
+async def get_public_departments():
+    """Get all departments (public endpoint for students)"""
+    try:
+        departments = await DatabaseOperations.find_many(
+            "departments",
+            {"is_active": True}
+        )
+        
+        dept_list = []
+        for dept in departments:
+            dept_dict = {
+                "id": dept["id"],
+                "name": dept["name"],
+                "code": dept["code"],
+                "description": dept.get("description")
+            }
+            dept_list.append(dept_dict)
+        
+        return APIResponse(
+            success=True,
+            message="Departments retrieved successfully",
+            data={"departments": dept_list}
+        )
+        
+    except Exception as e:
+        logger.error(f"Error retrieving departments: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error retrieving departments"
+        )
+
 @router.get("/departments", response_model=APIResponse)
 async def get_all_departments(
     admin: Any = Depends(get_current_admin_or_hod)
@@ -845,6 +877,40 @@ async def create_batch_year(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error creating batch year"
+        )
+
+@router.get("/batch-years/public", response_model=APIResponse)
+async def get_public_batch_years(department: Optional[str] = None):
+    """Get all batch years (public endpoint for students)"""
+    try:
+        filter_dict = {"is_active": True}
+        
+        if department:
+            filter_dict["department"] = department.upper()
+        
+        batch_years = await DatabaseOperations.find_many("batch_years", filter_dict)
+        
+        batch_list = []
+        for batch in batch_years:
+            batch_dict = {
+                "id": batch["id"],
+                "year_range": batch["year_range"],
+                "department": batch["department"],
+                "sections": batch["sections"]
+            }
+            batch_list.append(batch_dict)
+        
+        return APIResponse(
+            success=True,
+            message="Batch years retrieved successfully",
+            data={"batch_years": batch_list}
+        )
+        
+    except Exception as e:
+        logger.error(f"Error retrieving batch years: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error retrieving batch years"
         )
 
 @router.get("/batch-years", response_model=APIResponse)

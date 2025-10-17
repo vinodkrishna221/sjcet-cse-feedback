@@ -572,7 +572,7 @@ async def get_feedback_bundles(
         feedback_submissions = await DatabaseOperations.find_many(
             "feedback_submissions",
             filter_criteria,
-            sort=[("submitted_at", -1)]
+            sort={"submitted_at": -1}
         )
         
         # Convert to bundled format for frontend compatibility
