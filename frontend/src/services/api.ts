@@ -183,6 +183,20 @@ class ApiService {
     return this.handleResponse<ApiResponse>(response);
   }
 
+  // Get batch year analytics (for HOD dashboard)
+  async getBatchYearAnalytics(department?: string) {
+    const params = new URLSearchParams();
+    if (department) params.append('department', department);
+    
+    const url = `${API_BASE_URL}/feedback/analytics/batch-year${params.toString() ? `?${params.toString()}` : ''}`;
+    
+    const response = await fetch(url, {
+      headers: this.getAuthHeaders()
+    });
+
+    return this.handleResponse<ApiResponse>(response);
+  }
+
   // Refresh token
   async refreshToken() {
     const refreshToken = localStorage.getItem('refreshToken');

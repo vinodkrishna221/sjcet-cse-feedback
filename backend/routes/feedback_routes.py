@@ -184,7 +184,9 @@ async def get_submission_status(
             year = now.year
             
             # Determine semester based on month (same logic as frontend)
-            semester = "Even" if month >= 0 and month <= 5 else "Odd"
+            # Frontend: month >= 0 && month <= 5 (JS months 0-11)
+            # Backend: month >= 1 && month <= 6 (Python months 1-12)
+            semester = "Even" if month >= 1 and month <= 6 else "Odd"
             academic_year = f"{year}-{year + 1}"
         
         # Debug logging
@@ -617,6 +619,73 @@ async def get_feedback_questions():
         message="Feedback questions retrieved successfully",
         data={"questions": FEEDBACK_QUESTIONS}
     )
+
+@router.get("/analytics/batch-year", response_model=APIResponse)
+async def get_batch_year_analytics(
+    department: Optional[str] = None,
+    admin: Any = Depends(get_current_admin)
+):
+    """Get feedback analytics grouped by batch year instead of sections"""
+    try:
+        # Build filter criteria for department
+        department_filter = {}
+        
+        # For HOD role, restrict to their department
+        if admin.role == "hod" and admin.department:
+            department_filter["department"] = admin.department.upper()
+        elif department:
+            department_filter["department"] = department.upper()
+        
+        # Get batch year analytics
+        batch_year_pipeline = [
+            {"$match": department_filter},
+            {"$lookup": {
+                "from": "students",
+                "localField": "student_id",
+                "foreignField": "id",
+                "as": "student_info"
+            }},
+            {"$unwind": "$student_info"},
+            {"$group": {
+                "_id": {
+                    "batch_year": "$student_info.batch_year",
+                    "section": "$student_section"
+                },
+                "total_submissions": {"$sum": 1},
+                "average_rating": {"$avg": {"$avg": "$faculty_feedbacks.overall_rating"}},
+                "faculty_count": {"$addToSet": {"$size": "$faculty_feedbacks"}},
+                "recent_submissions": {
+                    "$sum": {
+                        "$cond": [
+                            {"$gte": ["$submitted_at", datetime.utcnow() - timedelta(days=30)]},
+                            1, 0
+                        ]
+                    }
+                }
+            }},
+            {"$sort": {"_id.batch_year": -1, "_id.section": 1}}
+        ]
+        
+        batch_year_analytics = await DatabaseOperations.aggregate("feedback_submissions", batch_year_pipeline)
+        
+        # Get overall department statistics
+        overall_stats = await AnalyticsOperations.get_dashboard_summary(department_filter)
+        
+        return APIResponse(
+            success=True,
+            message="Batch year analytics retrieved successfully",
+            data={
+                "batch_year_analytics": batch_year_analytics,
+                "overall_stats": overall_stats
+            }
+        )
+        
+    except Exception as e:
+        logger.error(f"Error retrieving batch year analytics: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error retrieving batch year analytics"
+        )
 
 @router.get("/bundles", response_model=APIResponse)
 async def get_feedback_bundles(

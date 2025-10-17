@@ -279,6 +279,79 @@ class AnalyticsOperations:
         return await DatabaseOperations.aggregate("feedback_submissions", pipeline)
     
     @staticmethod
+    async def get_dashboard_summary(department_filter: Dict[str, Any] = None) -> Dict[str, Any]:
+        """Get comprehensive dashboard summary statistics"""
+        db = get_database()
+        
+        # Base match conditions
+        match_conditions = {"is_active": True}
+        if department_filter:
+            match_conditions.update(department_filter)
+        
+        # Get total feedback submissions
+        total_submissions = await DatabaseOperations.count_documents(
+            "feedback_submissions", 
+            match_conditions
+        )
+        
+        # Get total students in department
+        student_match = {"is_active": True}
+        if department_filter and "department" in department_filter:
+            student_match["department"] = department_filter["department"]
+        
+        total_students = await DatabaseOperations.count_documents(
+            "students", 
+            student_match
+        )
+        
+        # Get average rating across all feedback
+        avg_rating_pipeline = [
+            {"$match": match_conditions},
+            {"$unwind": "$faculty_feedbacks"},
+            {"$group": {
+                "_id": None,
+                "average_rating": {"$avg": "$faculty_feedbacks.overall_rating"},
+                "total_ratings": {"$sum": 1}
+            }}
+        ]
+        
+        avg_rating_result = await DatabaseOperations.aggregate("feedback_submissions", avg_rating_pipeline)
+        avg_rating = avg_rating_result[0]["average_rating"] if avg_rating_result else 0
+        
+        # Get batch year distribution
+        batch_year_pipeline = [
+            {"$match": student_match},
+            {"$group": {
+                "_id": "$batch_year",
+                "student_count": {"$sum": 1}
+            }},
+            {"$sort": {"_id": -1}}
+        ]
+        
+        batch_year_distribution = await DatabaseOperations.aggregate("students", batch_year_pipeline)
+        
+        # Get section distribution within department
+        section_pipeline = [
+            {"$match": student_match},
+            {"$group": {
+                "_id": "$section",
+                "student_count": {"$sum": 1}
+            }},
+            {"$sort": {"_id": 1}}
+        ]
+        
+        section_distribution = await DatabaseOperations.aggregate("students", section_pipeline)
+        
+        return {
+            "total_submissions": total_submissions,
+            "total_students": total_students,
+            "average_rating": round(avg_rating, 2) if avg_rating else 0,
+            "batch_year_distribution": batch_year_distribution,
+            "section_distribution": section_distribution,
+            "submission_rate": round((total_submissions / total_students * 100), 2) if total_students > 0 else 0
+        }
+    
+    @staticmethod
     async def get_section_analytics() -> List[Dict[str, Any]]:
         """Get section-wise analytics"""
         db = get_database()

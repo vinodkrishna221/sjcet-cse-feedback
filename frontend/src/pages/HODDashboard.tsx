@@ -103,6 +103,10 @@ export default function HODDashboard() {
   const [batchYears, setBatchYears] = useState<BatchYear[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [availableSections, setAvailableSections] = useState<string[]>([]);
+  
+  // Analytics state
+  const [dashboardAnalytics, setDashboardAnalytics] = useState<any>(null);
+  const [batchYearAnalytics, setBatchYearAnalytics] = useState<any[]>([]);
 
   useEffect(() => {
     // Check if user is logged in and is HOD
@@ -166,6 +170,13 @@ export default function HODDashboard() {
       const bundlesResponse = await apiService.getFeedbackBundles(user?.department);
       if (bundlesResponse.success && bundlesResponse.data?.bundles) {
         setFeedbackData(bundlesResponse.data.bundles);
+      }
+
+      // Load batch year analytics
+      const analyticsResponse = await apiService.getBatchYearAnalytics(user?.department);
+      if (analyticsResponse.success && analyticsResponse.data) {
+        setDashboardAnalytics(analyticsResponse.data.overall_stats);
+        setBatchYearAnalytics(analyticsResponse.data.batch_year_analytics);
       }
     } catch (error) {
       console.error('Error loading dashboard data:', error);
@@ -563,16 +574,8 @@ export default function HODDashboard() {
     }
   };
 
-  // Calculate statistics
-  const totalResponses = feedbackData.length; // number of student submissions
+  // Calculate statistics (now using analytics data instead)
   const totalTeacherRatings = feedbackData.flatMap(b => b.teacherFeedbacks).length;
-  const averageRating = totalTeacherRatings > 0
-    ? (
-        feedbackData
-          .flatMap(b => b.teacherFeedbacks)
-          .reduce((sum, tf) => sum + (typeof tf.overallRating === 'number' ? tf.overallRating : 0), 0) / totalTeacherRatings
-      ).toFixed(1)
-    : "0";
 
   // Students per section
   const sectionAStudents = students.filter(s => s.section === 'A').length;
@@ -603,7 +606,7 @@ export default function HODDashboard() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Total Responses</p>
-                <h2 className="text-3xl font-bold">{totalResponses}</h2>
+                <h2 className="text-3xl font-bold">{dashboardAnalytics?.total_submissions || 0}</h2>
               </div>
               <div className="p-2 bg-primary/10 rounded-full text-primary">
                 <Users className="h-5 w-5" />
@@ -618,7 +621,7 @@ export default function HODDashboard() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Student Bundles</p>
-                <h2 className="text-3xl font-bold">{totalResponses}</h2>
+                <h2 className="text-3xl font-bold">{feedbackData.length}</h2>
               </div>
               <div className="p-2 bg-primary/10 rounded-full text-primary">
                 <Package className="h-5 w-5" />
@@ -633,7 +636,7 @@ export default function HODDashboard() {
             <div className="flex justify-between items-start">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Average Rating</p>
-                <h2 className="text-3xl font-bold">{averageRating}/10</h2>
+                <h2 className="text-3xl font-bold">{dashboardAnalytics?.average_rating || 0}/10</h2>
               </div>
               <div className="p-2 bg-primary/10 rounded-full text-primary">
                 <Star className="h-5 w-5" />
@@ -647,14 +650,14 @@ export default function HODDashboard() {
           <CardContent className="pt-6">
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Section A</p>
-                <h2 className="text-3xl font-bold">{sectionAStudents}</h2>
+                <p className="text-sm font-medium text-muted-foreground">Total Students</p>
+                <h2 className="text-3xl font-bold">{dashboardAnalytics?.total_students || 0}</h2>
               </div>
               <div className="p-2 bg-primary/10 rounded-full text-primary">
                 <BookOpen className="h-5 w-5" />
               </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-2">Section A students</p>
+            <p className="text-xs text-muted-foreground mt-2">Department students</p>
           </CardContent>
         </Card>
 
@@ -662,14 +665,14 @@ export default function HODDashboard() {
           <CardContent className="pt-6">
             <div className="flex justify-between items-start">
               <div>
-                <p className="text-sm font-medium text-muted-foreground">Section B</p>
-                <h2 className="text-3xl font-bold">{sectionBStudents}</h2>
+                <p className="text-sm font-medium text-muted-foreground">Submission Rate</p>
+                <h2 className="text-3xl font-bold">{dashboardAnalytics?.submission_rate || 0}%</h2>
               </div>
               <div className="p-2 bg-primary/10 rounded-full text-primary">
-                <BookOpen className="h-5 w-5" />
+                <TrendingUp className="h-5 w-5" />
               </div>
             </div>
-            <p className="text-xs text-muted-foreground mt-2">Section B students</p>
+            <p className="text-xs text-muted-foreground mt-2">Feedback completion rate</p>
           </CardContent>
         </Card>
       </div>
@@ -743,38 +746,85 @@ export default function HODDashboard() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
-                <CardTitle>Feedback Distribution</CardTitle>
-                <CardDescription>Students by section</CardDescription>
+                <CardTitle>Batch Year Distribution</CardTitle>
+                <CardDescription>Students and feedback by batch year</CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span>Section A</span>
-                    <span>{sectionAStudents}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Section B</span>
-                    <span>{sectionBStudents}</span>
-                  </div>
+                <div className="space-y-3">
+                  {batchYearAnalytics.length > 0 ? (
+                    batchYearAnalytics.map((batch, index) => (
+                      <div key={index} className="flex justify-between items-center p-3 bg-muted/50 rounded-lg">
+                        <div>
+                          <span className="font-medium">{batch._id.batch_year}</span>
+                          <span className="text-sm text-muted-foreground ml-2">Section {batch._id.section}</span>
+                        </div>
+                        <div className="text-right">
+                          <div className="font-medium">{batch.total_submissions} submissions</div>
+                          <div className="text-sm text-muted-foreground">
+                            Avg: {batch.average_rating?.toFixed(1) || 0}/10
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-4 text-muted-foreground">
+                      No batch year data available
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
-                <CardTitle>Quick Actions</CardTitle>
-                <CardDescription>Manage feedback data</CardDescription>
+                <CardTitle>Department Overview</CardTitle>
+                <CardDescription>Overall department statistics</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-2">
-                <Button variant="outline" className="w-full justify-start" onClick={handleExportData}>
-                  <Eye className="mr-2 h-4 w-4" /> Export All Data as CSV
-                </Button>
-                <Button variant="outline" className="w-full justify-start">
-                  <TrendingUp className="mr-2 h-4 w-4" /> Generate Analytics Report
-                </Button>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="text-center p-3 bg-muted/50 rounded-lg">
+                    <div className="text-2xl font-bold text-primary">
+                      {dashboardAnalytics?.total_students || 0}
+                    </div>
+                    <div className="text-sm text-muted-foreground">Total Students</div>
+                  </div>
+                  <div className="text-center p-3 bg-muted/50 rounded-lg">
+                    <div className="text-2xl font-bold text-primary">
+                      {dashboardAnalytics?.submission_rate || 0}%
+                    </div>
+                    <div className="text-sm text-muted-foreground">Completion Rate</div>
+                  </div>
+                </div>
+                <div className="pt-2">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm">Average Rating</span>
+                    <span className="font-medium">{dashboardAnalytics?.average_rating || 0}/10</span>
+                  </div>
+                  <div className="w-full bg-muted rounded-full h-2">
+                    <div 
+                      className="bg-primary h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${(dashboardAnalytics?.average_rating || 0) * 10}%` }}
+                    ></div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
           </div>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Quick Actions</CardTitle>
+              <CardDescription>Manage feedback data</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              <Button variant="outline" className="w-full justify-start" onClick={handleExportData}>
+                <Eye className="mr-2 h-4 w-4" /> Export All Data as CSV
+              </Button>
+              <Button variant="outline" className="w-full justify-start">
+                <TrendingUp className="mr-2 h-4 w-4" /> Generate Analytics Report
+              </Button>
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Student Bundles Tab */}
