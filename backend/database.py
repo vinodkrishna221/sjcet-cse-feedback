@@ -317,7 +317,10 @@ class AnalyticsOperations:
         
         try:
             avg_rating_result = await DatabaseOperations.aggregate("feedback_submissions", avg_rating_pipeline)
-            avg_rating = avg_rating_result[0]["average_rating"] if avg_rating_result and len(avg_rating_result) > 0 else 0
+            if avg_rating_result and len(avg_rating_result) > 0 and avg_rating_result[0].get("average_rating") is not None:
+                avg_rating = avg_rating_result[0]["average_rating"]
+            else:
+                avg_rating = 0
         except Exception as e:
             logger.warning(f"Error calculating average rating: {e}")
             avg_rating = 0
@@ -387,38 +390,3 @@ class AnalyticsOperations:
         
         return await DatabaseOperations.aggregate("feedback_submissions", pipeline)
     
-    @staticmethod
-    async def get_dashboard_summary() -> Dict[str, Any]:
-        """Get complete dashboard summary"""
-        db = get_database()
-        
-        # Get counts
-        total_students = await DatabaseOperations.count_documents("students", {"is_active": True})
-        total_faculty = await DatabaseOperations.count_documents("faculty", {"is_active": True})
-        total_feedback = await DatabaseOperations.count_documents("feedback_submissions")
-        
-        # Get recent feedback (last 7 days)
-        recent_date = datetime.utcnow() - timedelta(days=7)
-        recent_feedback = await DatabaseOperations.count_documents(
-            "feedback_submissions", 
-            {"submitted_at": {"$gte": recent_date}}
-        )
-        
-        # Get average rating
-        avg_pipeline = [
-            {"$unwind": "$faculty_feedbacks"},
-            {"$group": {
-                "_id": None,
-                "average_rating": {"$avg": "$faculty_feedbacks.overall_rating"}
-            }}
-        ]
-        avg_result = await DatabaseOperations.aggregate("feedback_submissions", avg_pipeline)
-        average_rating = avg_result[0]['average_rating'] if avg_result else 0
-        
-        return {
-            "total_students": total_students,
-            "total_faculty": total_faculty,
-            "total_feedback_submissions": total_feedback,
-            "recent_submissions": recent_feedback,
-            "average_rating": round(average_rating, 2)
-        }

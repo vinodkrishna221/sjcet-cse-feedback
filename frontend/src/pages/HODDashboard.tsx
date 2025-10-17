@@ -156,6 +156,13 @@ export default function HODDashboard() {
       );
       if (studentsResponse.success && studentsResponse.data?.data) {
         setStudents(studentsResponse.data.data);
+        
+        // Update total students count from students data
+        const studentCount = studentsResponse.data.data.length;
+        setDashboardAnalytics((prev: any) => ({
+          ...prev,
+          total_students: studentCount
+        }));
       }
 
       // Load teachers with department filter
@@ -172,14 +179,59 @@ export default function HODDashboard() {
       const bundlesResponse = await apiService.getFeedbackBundles(user?.department);
       if (bundlesResponse.success && bundlesResponse.data?.bundles) {
         setFeedbackData(bundlesResponse.data.bundles);
+        
+        // Calculate basic stats from bundles if analytics fails
+        const bundles = bundlesResponse.data.bundles;
+        if (bundles && bundles.length > 0) {
+          // Calculate total submissions
+          const totalSubmissions = bundles.length;
+          
+          // Calculate average rating from all bundles
+          let totalRating = 0;
+          let ratingCount = 0;
+          
+          bundles.forEach((bundle: any) => {
+            if (bundle.faculty_feedbacks && bundle.faculty_feedbacks.length > 0) {
+              bundle.faculty_feedbacks.forEach((feedback: any) => {
+                if (feedback.overall_rating) {
+                  totalRating += feedback.overall_rating;
+                  ratingCount++;
+                }
+              });
+            }
+          });
+          
+          const averageRating = ratingCount > 0 ? totalRating / ratingCount : 0;
+          
+          // Calculate submission rate
+          const totalStudents = studentsResponse?.data?.data?.length || 0;
+          const submissionRate = totalStudents > 0 ? Math.round((totalSubmissions / totalStudents) * 100) : 0;
+          
+          // Update dashboard analytics with calculated values
+          setDashboardAnalytics((prev: any) => ({
+            ...prev,
+            total_submissions: totalSubmissions,
+            average_rating: Math.round(averageRating * 10) / 10, // Round to 1 decimal place
+            submission_rate: submissionRate
+          }));
+        }
       }
 
       // Load batch year analytics with enhanced error handling
       try {
         const analyticsResponse = await apiService.getBatchYearAnalytics(user?.department);
         if (analyticsResponse.success && analyticsResponse.data) {
-          setDashboardAnalytics(analyticsResponse.data.overall_stats);
-          setBatchYearAnalytics(analyticsResponse.data.batch_year_analytics);
+          // Ensure we have valid data structure
+          const overallStats = analyticsResponse.data.overall_stats || {};
+          const batchYearData = analyticsResponse.data.batch_year_analytics || [];
+          
+          setDashboardAnalytics({
+            total_submissions: overallStats.total_submissions || 0,
+            total_students: overallStats.total_students || 0,
+            average_rating: overallStats.average_rating || 0,
+            submission_rate: overallStats.submission_rate || 0
+          });
+          setBatchYearAnalytics(batchYearData);
         } else {
           console.warn('Analytics response not successful:', analyticsResponse);
           // Set default values
@@ -193,7 +245,8 @@ export default function HODDashboard() {
         }
       } catch (analyticsError) {
         console.error('Error loading analytics:', analyticsError);
-        toast.error('Failed to load analytics data');
+        // Don't show error toast for analytics, just log it
+        console.warn('Analytics data unavailable, using defaults');
         // Set default values
         setDashboardAnalytics({
           total_submissions: 0,

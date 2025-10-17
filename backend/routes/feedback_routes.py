@@ -654,7 +654,6 @@ async def get_batch_year_analytics(
                 },
                 "total_submissions": {"$sum": 1},
                 "average_rating": {"$avg": {"$avg": "$faculty_feedbacks.overall_rating"}},
-                "faculty_count": {"$addToSet": {"$size": "$faculty_feedbacks"}},
                 "recent_submissions": {
                     "$sum": {
                         "$cond": [
@@ -667,10 +666,25 @@ async def get_batch_year_analytics(
             {"$sort": {"_id.batch_year": -1, "_id.section": 1}}
         ]
         
-        batch_year_analytics = await DatabaseOperations.aggregate("feedback_submissions", batch_year_pipeline)
+        try:
+            batch_year_analytics = await DatabaseOperations.aggregate("feedback_submissions", batch_year_pipeline)
+        except Exception as e:
+            logger.warning(f"Error in batch year analytics aggregation: {e}")
+            batch_year_analytics = []
         
         # Get overall department statistics
-        overall_stats = await AnalyticsOperations.get_dashboard_summary(department_filter)
+        try:
+            overall_stats = await AnalyticsOperations.get_dashboard_summary(department_filter)
+        except Exception as e:
+            logger.warning(f"Error getting dashboard summary: {e}")
+            overall_stats = {
+                "total_submissions": 0,
+                "total_students": 0,
+                "average_rating": 0,
+                "submission_rate": 0,
+                "batch_year_distribution": [],
+                "section_distribution": []
+            }
         
         # Ensure we return empty arrays instead of null/undefined
         if not batch_year_analytics:
