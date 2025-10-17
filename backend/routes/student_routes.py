@@ -47,8 +47,40 @@ async def get_all_students(
         
         # For HOD role, ALWAYS enforce their department
         if admin.role == "hod" and admin.department:
-            filter_dict["department"] = admin.department.upper()
-            logger.info(f"HOD filtering by department: {admin.department.upper()}")
+            # Handle both department code and name matching
+            hod_dept = admin.department.upper()
+            
+            # First try exact match with department code
+            filter_dict["department"] = hod_dept
+            logger.info(f"HOD filtering by department code: {hod_dept}")
+            
+            # If no students found, try department name matching
+            # This handles cases where students might have full department names
+            test_count = await DatabaseOperations.count_documents("students", filter_dict)
+            if test_count == 0:
+                logger.info(f"No students found with department code '{hod_dept}', trying department name matching")
+                # Get department name from departments collection
+                dept_info = await DatabaseOperations.find_one(
+                    "departments", 
+                    {"code": hod_dept, "is_active": True}
+                )
+                if dept_info:
+                    dept_name = dept_info.get("name", "").upper()
+                    logger.info(f"Found department name: {dept_name}")
+                    # Try matching with department name
+                    filter_dict["department"] = dept_name
+                    test_count = await DatabaseOperations.count_documents("students", filter_dict)
+                    if test_count == 0:
+                        # If still no match, try both code and name
+                        filter_dict["department"] = {"$in": [hod_dept, dept_name]}
+                        logger.info(f"Trying both department code and name: {[hod_dept, dept_name]}")
+                    else:
+                        logger.info(f"Found {test_count} students with department name")
+                else:
+                    logger.warning(f"Department with code '{hod_dept}' not found in departments collection")
+            else:
+                logger.info(f"Found {test_count} students with department code")
+                
         elif department and admin.role != "hod":  # Only apply query param for non-HOD users
             filter_dict["department"] = department.upper()
             logger.info(f"Non-HOD filtering by department: {department.upper()}")
