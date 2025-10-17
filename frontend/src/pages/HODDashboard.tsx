@@ -139,8 +139,8 @@ export default function HODDashboard() {
         
         // Extract unique sections from batch years
         const uniqueSections = new Set<string>();
-        batchYearsResponse.data.batch_years.forEach((batch: BatchYear) => {
-          batch.sections.forEach(section => uniqueSections.add(section));
+        (batchYearsResponse.data.batch_years || []).forEach((batch: BatchYear) => {
+          (batch.sections || []).forEach(section => uniqueSections.add(section));
         });
         setAvailableSections(Array.from(uniqueSections).sort());
       }
@@ -192,9 +192,9 @@ export default function HODDashboard() {
           let totalRating = 0;
           let ratingCount = 0;
           
-          bundles.forEach((bundle: any) => {
+          (bundles || []).forEach((bundle: any) => {
             if (bundle.faculty_feedbacks && bundle.faculty_feedbacks.length > 0) {
-              bundle.faculty_feedbacks.forEach((feedback: any) => {
+              (bundle.faculty_feedbacks || []).forEach((feedback: any) => {
                 if (feedback.overall_rating) {
                   totalRating += feedback.overall_rating;
                   ratingCount++;
@@ -430,7 +430,7 @@ export default function HODDashboard() {
         const errors: string[] = [];
         const validStudents: StudentDetails[] = [];
         
-        results.data.forEach((row: any, index: number) => {
+        (results.data || []).forEach((row: any, index: number) => {
           // Validate required fields
           if (!row.reg_number || !row.name || !row.section || !row.dob) {
             errors.push(`Row ${index + 1}: Missing required fields`);
@@ -1095,8 +1095,8 @@ export default function HODDashboard() {
                     {(() => {
                       const rows: { key: string; teacherName: string; subject: string; count: number; avg: number; weightedScore: number; grade: string }[] = [];
                       const map = new Map<string, { sum: number; count: number; teacherName: string; subject: string; weightedSum: number; weightedCount: number }>();
-                      feedbackData.forEach(b => {
-                        b.teacherFeedbacks.forEach(tf => {
+                      (feedbackData || []).forEach(b => {
+                        (b.teacherFeedbacks || []).forEach(tf => {
                           const key = `${tf.teacherId}|${tf.subject}`;
                           const entry = map.get(key) || { sum: 0, count: 0, teacherName: tf.teacherName, subject: tf.subject, weightedSum: 0, weightedCount: 0 };
                           entry.sum += typeof tf.overallRating === 'number' ? tf.overallRating : 0;

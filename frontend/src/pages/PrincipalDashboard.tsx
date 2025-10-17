@@ -1083,7 +1083,7 @@ const PrincipalDashboard = () => {
                                 </SelectTrigger>
                                 <SelectContent>
                                   <SelectItem value="none">No Department</SelectItem>
-                                  {departments.map((dept) => (
+                                  {(departments || []).map((dept) => (
                                     <SelectItem key={dept.id} value={dept.code}>
                                       {dept.name} ({dept.code})
                                     </SelectItem>
@@ -1141,7 +1141,7 @@ const PrincipalDashboard = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {hods.map((hod) => (
+                        {(hods || []).map((hod) => (
                           <TableRow key={hod.id}>
                             <TableCell>{hod.name}</TableCell>
                             <TableCell>{hod.username}</TableCell>
@@ -1182,7 +1182,7 @@ const PrincipalDashboard = () => {
                                       <SelectValue placeholder="Assign" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                      {departments.filter(dept => !dept.hod_id).map((dept) => (
+                                      {(departments || []).filter(dept => !dept.hod_id).map((dept) => (
                                         <SelectItem key={dept.id} value={dept.code}>
                                           {dept.code}
                                         </SelectItem>
@@ -1262,7 +1262,7 @@ const PrincipalDashboard = () => {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="none">No HOD assigned</SelectItem>
-                                {hods.map((hod) => (
+                                {(hods || []).map((hod) => (
                                   <SelectItem key={hod.id} value={hod.id}>
                                     {hod.name} ({hod.username})
                                   </SelectItem>
@@ -1297,7 +1297,7 @@ const PrincipalDashboard = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {departments.map((dept) => (
+                        {(departments || []).map((dept) => (
                           <TableRow key={dept.id}>
                             <TableCell>{dept.name}</TableCell>
                             <TableCell>
@@ -1340,7 +1340,7 @@ const PrincipalDashboard = () => {
                                       <SelectValue placeholder="Assign HOD" />
                                     </SelectTrigger>
                                     <SelectContent>
-                                      {hods.filter(hod => !hod.department).map((hod) => (
+                                      {(hods || []).filter(hod => !hod.department).map((hod) => (
                                         <SelectItem key={hod.id} value={hod.id}>
                                           {hod.name}
                                         </SelectItem>
@@ -1412,7 +1412,7 @@ const PrincipalDashboard = () => {
                                   <SelectValue placeholder="Select department" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  {departments.map((dept) => (
+                                  {(departments || []).map((dept) => (
                                     <SelectItem key={dept.id} value={dept.code}>
                                       {dept.name} ({dept.code})
                                     </SelectItem>
@@ -1487,7 +1487,7 @@ const PrincipalDashboard = () => {
                                     <SelectValue placeholder="Select batch year" />
                                   </SelectTrigger>
                                   <SelectContent>
-                                    {batchYears.map((batch) => (
+                                    {(batchYears || []).map((batch) => (
                                       <SelectItem key={batch.id} value={batch.id}>
                                         {batch.year_range} {batch.department}
                                       </SelectItem>
@@ -1498,7 +1498,7 @@ const PrincipalDashboard = () => {
                               <div>
                                 <Label>Sections</Label>
                                 <div className="flex flex-wrap gap-2 mb-2">
-                                  {newSections.map((section) => (
+                                  {(newSections || []).map((section) => (
                                     <Badge key={section} variant="secondary" className="px-2 py-1">
                                       Section {section}
                                       <button 
@@ -1558,13 +1558,13 @@ const PrincipalDashboard = () => {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {batchYears.map((batch) => (
+                          {(batchYears || []).map((batch) => (
                             <TableRow key={batch.id}>
                               <TableCell>{batch.year_range}</TableCell>
                               <TableCell>{batch.department}</TableCell>
                               <TableCell>
                                 <div className="flex gap-1">
-                                  {batch.sections?.map((section) => (
+                                  {(batch.sections || []).map((section) => (
                                     <Badge key={section} variant="outline">
                                       {section}
                                     </Badge>
@@ -1667,7 +1667,7 @@ const PrincipalDashboard = () => {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No HOD assigned</SelectItem>
-                  {hods.map((hod) => (
+                  {(hods || []).map((hod) => (
                     <SelectItem key={hod.id} value={hod.id}>
                       {hod.name} ({hod.username})
                     </SelectItem>
@@ -1746,7 +1746,7 @@ const PrincipalDashboard = () => {
                   <SelectValue placeholder="Select department" />
                 </SelectTrigger>
                 <SelectContent>
-                  {departments.map((dept) => (
+                  {(departments || []).map((dept) => (
                     <SelectItem key={dept.id} value={dept.code}>
                       {dept.name} ({dept.code})
                     </SelectItem>
@@ -1811,7 +1811,7 @@ const PrincipalDashboard = () => {
                   <SelectValue placeholder="Select department" />
                 </SelectTrigger>
                 <SelectContent>
-                  {departments.map((dept) => (
+                  {(departments || []).map((dept) => (
                     <SelectItem key={dept.id} value={dept.code}>
                       {dept.name} ({dept.code})
                     </SelectItem>
